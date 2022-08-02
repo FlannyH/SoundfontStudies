@@ -3,8 +3,8 @@
 
 struct ChunkID {
 	union { 
-		u32 id; 
-		char id_chr[4]; 
+		u32 id = 0; 
+		char id_chr[4];
 	};
 	static constexpr u32 from_string(const char* v) { 
 		return *(u32*)v;
@@ -35,7 +35,7 @@ struct ChunkDataHandler
 		chunk_bytes_left = size;
 		return true;
 	}
-	bool get_data(void* destination, int byte_count) {
+	bool get_data(void* destination, u32 byte_count) {
 		if (chunk_bytes_left >= byte_count)
 		{
 			if (destination != nullptr) { // Sending a nullptr is valid, it just discards byte_count number of bytes
@@ -51,7 +51,7 @@ struct ChunkDataHandler
 
 struct Chunk {
 	ChunkID id;
-	u32 size;
+	u32 size = 0;
 	bool from_file(FILE*& file) {
 		return fread_s(this, sizeof(*this), sizeof(*this), 1, file) > 0;
 	}
@@ -68,23 +68,23 @@ struct Chunk {
 };
 #pragma pack(push, 1)
 struct sfVersionTag {
-	u16 wMajor;
-	u16 wMinor;
+	u16 major;
+	u16 minor;
 };
 
 struct sfPresetHeader {
-	char achPresetName[20]; // Preset name
-	u16 wPreset; // MIDI program number
-	u16 wBank; // MIDI bank number
-	u16 wPresetBagNdx; // PBAG index - if not equal to PHDR index, the .sf2 file is invalid
-	u32 dwLibrary;
-	u32 dwGenre;
-	u32 dwMorphology;
+	char preset_name[20]; // Preset name
+	u16 program; // MIDI program number
+	u16 bank; // MIDI bank number
+	u16 pbag_index; // PBAG index - if not equal to PHDR index, the .sf2 file is invalid
+	u32 library;
+	u32 genre;
+	u32 morphology;
 };
 
 struct sfBag {
-	u16 wGenNdx;
-	u16 wModNdx;
+	u16 generator_index;
+	u16 modulator_index;
 };
 
 struct SFModulator
@@ -241,20 +241,20 @@ enum SFTransform : u16 {
 };
 
 struct sfModList {
-	SFModulator sfModSrcOper;
-	SFGenerator sfModDestOper;
-	i16 modAmount;
-	SFModulator sfModAmtSrcOper;
-	SFTransform sfModTransOper;
+	SFModulator src_oper;
+	SFGenerator dest_oper;
+	i16 amount;
+	SFModulator amount_src_oper;
+	SFTransform trans_oper;
 };
 
 struct sfGenList {
-	SFGenerator sfGenOper;
-	GenAmountType genAmount;
+	SFGenerator oper;
+	GenAmountType amount;
 };
 struct sfInst {
-	u8 achInstName[20];
-	u16 wInstBagNdx;
+	u8 name[20];
+	u16 bag_index;
 };
 
 enum SFSampleLink : u16 {
@@ -269,15 +269,15 @@ enum SFSampleLink : u16 {
 };
 
 struct sfSample {
-	char achSampleName[20];
-	u32 dwStart;
-	u32 dwEnd;
-	u32 dwStartloop;
-	u32 dwEndloop;
-	u32 dwSampleRate;
-	u8 byOriginalKey;
-	u8 chCorrection;
-	u16 wSampleLink;
-	SFSampleLink sfSampleType;
+	char name[20];
+	u32 start_index;
+	u32 end_index;
+	u32 loop_start_index;
+	u32 loop_end_index;
+	u32 sample_rate;
+	u8 original_key;
+	u8 correction;
+	u16 sample_link;
+	SFSampleLink type;
 };
 #pragma pack(pop)
