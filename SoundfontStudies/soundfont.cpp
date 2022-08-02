@@ -1,6 +1,5 @@
 #include "soundfont.h"
 #include <iostream>
-#include "structs.h"
 #include <vector>
 
 #define VERBOSE 1
@@ -115,15 +114,15 @@ bool Soundfont::from_file(std::string path) {
 
 	print_verbose("\n---pdta LIST---\n\n");
 	// There are 3 LIST chunks. The second one is the pdta list - this has presets, instruments, and sample header data
-	sfPresetHeader*		preset_headers	= nullptr;			int n_preset_headers = 0;
-	sfBag*				preset_bags		= nullptr;			int n_preset_bags	 = 0;
-	sfModList*			preset_mods		= nullptr;			int n_preset_mods	 = 0;
-	sfGenList*			preset_gens		= nullptr;			int n_preset_gens	 = 0;
-	sfInst*				instruments		= nullptr;			int n_instruments	 = 0;
-	sfBag*				instr_bags		= nullptr;			int n_instr_bags	 = 0;
-	sfModList*			instr_mods		= nullptr;			int n_instr_mods	 = 0;
-	sfGenList*			instr_gens		= nullptr;			int n_instr_gens	 = 0;
-	sfSample*			sample_headers	= nullptr;			int n_samples		 = 0;
+	preset_headers	= nullptr;  n_preset_headers = 0;
+	preset_bags		= nullptr;  n_preset_bags	 = 0;
+	preset_mods		= nullptr;  n_preset_mods	 = 0;
+	preset_gens		= nullptr;  n_preset_gens	 = 0;
+	instruments		= nullptr;  n_instruments	 = 0;
+	instr_bags		= nullptr;  n_instr_bags	 = 0;
+	instr_mods		= nullptr;  n_instr_mods	 = 0;
+	instr_gens		= nullptr;  n_instr_gens	 = 0;
+	sample_headers	= nullptr;  n_samples		 = 0;
 	{
 		// Read the chunk header
 		Chunk curr_chunk;
@@ -225,53 +224,6 @@ bool Soundfont::from_file(std::string path) {
 		print_verbose("");
 	}
 
-	print_verbose("\n--PRESETS--\n\n");
-	for (int p_id = 0; p_id < n_preset_headers - 1; p_id++)
-	{
-		print_verbose("Preset %02i:\n", p_id);
-		print_verbose("\tName: %s\n", preset_headers[p_id].preset_name);
-		print_verbose("\tMIDI program: %03u:%03u\n", preset_headers[p_id].bank, preset_headers[p_id].program);
-
-		Preset new_preset;
-		// Get bags
-		int n_p_bags = preset_headers[p_id + 1].pbag_index - preset_headers[p_id].pbag_index;
-		int instr_id = 0;
-		for (int p_bag_id = preset_headers[p_id].pbag_index; p_bag_id < preset_headers[p_id].pbag_index + n_p_bags; p_bag_id++)
-		{
-			// Get preset generators
-			print_verbose("\tPreset generators:\n");
-			int p_gen_id = preset_bags[p_bag_id].generator_index;
-			int instr_id = 0;
-			while (1) {
-				print_verbose("\t\t%s = 0x%04X", SFGenerator_names[preset_gens[p_gen_id].oper].c_str(), preset_gens[p_gen_id].amount.u_amount);
-				if (preset_gens[p_gen_id].oper == instrument) {
-					instr_id = preset_gens[p_gen_id].amount.u_amount;
-					print_verbose(" - %s\n", instruments[instr_id].name);
-					break;
-				}
-				p_gen_id++;
-				print_verbose("\n");
-			}
-		}
-
-		int n_i_bags = instruments[instr_id + 1].bag_index - instruments[instr_id].bag_index;
-		int i_bag_id = instruments[instr_id].bag_index;
-		for (int i_bag_id = instruments[instr_id].bag_index; i_bag_id < instruments[instr_id].bag_index + n_i_bags; i_bag_id++)
-		{
-			// Get preset generators
-			print_verbose("\tInstrument generators (bag id %d):\n", i_bag_id);
-			
-			int n_gen_ids = instr_bags[i_bag_id + 1].generator_index - instr_bags[i_bag_id].generator_index;
-			for (int i_gen_id = instr_bags[i_bag_id].generator_index; i_gen_id < instr_bags[i_bag_id].generator_index + n_gen_ids; i_gen_id++)
-			{	print_verbose("\t\t%s = 0x%04X\n", SFGenerator_names[instr_gens[i_gen_id].oper].c_str(), instr_gens[i_gen_id].amount.u_amount);
-			}
-		}
-	}
-
-	if (!sample_headers) {
-		return false;
-	}
-
 	print_verbose("\n--SAMPLES--\n\n");
 	// Load all the samples into the list
 	int x = 0;
@@ -320,7 +272,7 @@ bool Soundfont::from_file(std::string path) {
 
 		// Add to map
 		samples[sample_headers[x].name] = new_sample;
-		
+
 		x++;
 		// Skip right samples, we handle those together with leftSample
 		while (sample_headers[x].type == rightSample) {
@@ -332,14 +284,170 @@ bool Soundfont::from_file(std::string path) {
 		}
 	}
 
+	print_verbose("\n--PRESETS--\n\n");
+	for (int p_id = 0; p_id < n_preset_headers - 1; p_id++)
+	{
+		get_preset_from_index(p_id);
+	}
+
+	if (!sample_headers) {
+		return false;
+	}
+
 	printf("Soundfont '%s' loaded succesfully!", path.c_str());
 
 	return true;
 }
 
+Preset Soundfont::get_preset_from_index(size_t index) {
+	// Prepare misc variables
+	std::map<std::string, GenAmountType> preset_global_generator_values;
+	std::map<std::string, GenAmountType> instrument_global_generator_values;
+	Preset final_preset;
+
+	// Get preset zones from index
+	uint16_t preset_zone_start = preset_headers[index].pbag_index;
+	uint16_t zone_end = preset_headers[index + 1].pbag_index;
+
+	// Loop over all preset zones
+	for (uint16_t preset_zone_index = preset_zone_start; preset_zone_index < zone_end; preset_zone_index++)	{
+		// Prepare loop variables
+		std::map<std::string, GenAmountType> preset_zone_generator_values;
+		uint16_t generator_start = preset_bags[preset_zone_index].generator_index;
+		uint16_t generator_end = preset_bags[preset_zone_index + 1].generator_index;
+
+		// Loop over all preset zone's generator values
+		for (uint16_t generator_index = generator_start; generator_index < generator_end; generator_index++) {
+			// Get name and value
+			std::string oper_name = SFGenerator_names[preset_gens[generator_index].oper];
+			GenAmountType oper_value = preset_gens[generator_index].amount;
+
+			// Insert into zone map
+			preset_zone_generator_values[oper_name] = oper_value;
+		}
+
+		// Does the instrument ID exist?
+		if (preset_zone_generator_values.find("instrument") == preset_zone_generator_values.end()) {
+			// If not, this is the global preset zone, save it and go to next preset zone
+			preset_global_generator_values = preset_zone_generator_values;
+			continue;
+		}
+
+		// Get instrument ID
+		uint16_t instrument_id = preset_zone_generator_values["instrument"].u_amount;
+
+		// Get instrument zones
+		uint16_t instrument_start = instruments[instrument_id].bag_index;
+		uint16_t instrument_end = instruments[instrument_id+1].bag_index;
+
+		// Loop over all instrument zones
+		for (uint16_t instrument_index = instrument_start; instrument_index < instrument_end; instrument_index++) {
+			// Prepare instrument zone
+			std::map<std::string, GenAmountType> instrument_zone_generator_values;
+			uint16_t instrument_gen_start = instr_bags[instrument_index].generator_index;
+			uint16_t instrument_gen_end = instr_bags[instrument_index+1].generator_index;
+
+			// Loop over all instrument zone's values
+			for (uint16_t instrument_gen_index = instrument_gen_start; instrument_gen_index < instrument_gen_end; instrument_gen_index++)
+			{
+				// Get name and value
+				std::string oper_name = SFGenerator_names[instr_gens[instrument_gen_index].oper];
+				GenAmountType oper_value = instr_gens[instrument_gen_index].amount;
+				instrument_zone_generator_values[oper_name] = oper_value;
+			}
+
+			// Does the instrument ID exist?
+			if (instrument_zone_generator_values.find("sampleID") == instrument_zone_generator_values.end()) {
+				// If not, this is the global preset zone, save it and go to next preset zone
+				instrument_global_generator_values = instrument_zone_generator_values;
+				continue;
+			}
+
+			// Create final zone from default zones
+			std::map<std::string, GenAmountType> final_zone_generator_values;
+			init_default_zone(final_zone_generator_values);
+
+			// Apply global instrument zone
+			for (auto& entry : instrument_global_generator_values) {
+				final_zone_generator_values[entry.first] = entry.second;
+			}
+
+			// Apply current instrument zone
+			for (auto& entry : instrument_zone_generator_values) {
+				final_zone_generator_values[entry.first] = entry.second;
+			}
+
+			// Apply global preset zone
+			for (auto& entry : preset_global_generator_values) {
+				final_zone_generator_values[entry.first] = entry.second;
+			}
+
+			// Apply current preset zone
+			for (auto& entry : preset_zone_generator_values) {
+				final_zone_generator_values[entry.first] = entry.second;
+			}
+
+			// Parse zone to custom zone format
+			Zone new_zone_to_add{
+				final_zone_generator_values["keyRange"].ranges.low,
+				final_zone_generator_values["keyRange"].ranges.high,
+				final_zone_generator_values["velRange"].ranges.low,
+				final_zone_generator_values["velRange"].ranges.high,
+				final_zone_generator_values["sampleID"].u_amount,
+				final_zone_generator_values["sampleModes"].u_amount % 2 == 1,
+				(float)final_zone_generator_values["pan"].s_amount / 500.0f,
+				powf(2.0f, (float)final_zone_generator_values["attackVolEnv"].s_amount / 1200.0f),
+				powf(2.0f, (float)final_zone_generator_values["holdVolEnv"].s_amount / 1200.0f),
+				powf(2.0f, (float)final_zone_generator_values["decayVolEnv"].s_amount / 1200.0f),
+				(float)final_zone_generator_values["sustainVolEnv"].u_amount / 10.0f,
+				powf(2.0f, (float)final_zone_generator_values["releaseVolEnv"].s_amount / 1200.0f),
+				(float)final_zone_generator_values["scaleTuning"].s_amount / 100.0f,
+				(float)final_zone_generator_values["coarseTune"].s_amount + (float)final_zone_generator_values["fineTune"].s_amount / 100.0f,
+			};
+
+			// Add to final preset
+			final_preset.zones.push_back(new_zone_to_add);
+		}
+	}
+
+	// Add it to the presets
+	presets[preset_headers[index].bank << 8 | preset_headers[index].program] = final_preset;
+
+	// Loop over all preset zones
+	return final_preset;
+}
+
+void Soundfont::init_default_zone(std::map<std::string, GenAmountType>& preset_zone_generator_values)
+{
+	// Zero initialize everything
+	for (std::string& str : SFGenerator_names)
+		preset_zone_generator_values[str].u_amount = 0x0000;
+	
+	// Handle non zero values
+	preset_zone_generator_values["initialFilterFc"].s_amount	= -12000;
+	preset_zone_generator_values["delayModLFO"].s_amount		= -12000;
+	preset_zone_generator_values["delayVibLFO"].s_amount		= -12000;
+	preset_zone_generator_values["delayModEnv"].s_amount		= -12000;
+	preset_zone_generator_values["attackModEnv"].s_amount		= -12000;
+	preset_zone_generator_values["holdModEnv"].s_amount			= -12000;
+	preset_zone_generator_values["decayModEnv"].s_amount		= -12000;
+	preset_zone_generator_values["releaseModEnv"].s_amount		= -12000;
+	preset_zone_generator_values["delayVolEnv"].s_amount		= -12000;
+	preset_zone_generator_values["attackVolEnv"].s_amount		= -12000;
+	preset_zone_generator_values["holdVolEnv"].s_amount			= -12000;
+	preset_zone_generator_values["decayVolEnv"].s_amount		= -12000;
+	preset_zone_generator_values["releaseVolEnv"].s_amount		= -12000;
+	preset_zone_generator_values["keyRange"].ranges				= {0, 127};
+	preset_zone_generator_values["keynum"].s_amount				= -1;
+	preset_zone_generator_values["velocity"].s_amount			= -1;
+	preset_zone_generator_values["scaleTuning"].u_amount		= 100;
+	preset_zone_generator_values["overridingRootKey "].s_amount = -1;
+};
+
+
 int main()
 {
 	Soundfont soundfont;
-	soundfont.from_file("../NewSoundfont.sf2");
+	soundfont.from_file("../NewSoundFont.sf2");
 	return 0;
 }
