@@ -1,20 +1,24 @@
 #pragma once
 #include <unordered_map>
 #include "common.h"
-#include "fixed_32_32.h"
 #include <map>
 
 struct Sample {
 	u16* data;						// Can not be nullptr 
-	fixed_32_32 base_sample_rate;	// In samples per second
+	float base_sample_rate;			// In samples per second
 	u32 length;						// In samples
 	u32 loop_start;					// In samples
 	u32 loop_end;					// In samples
 	u8 n_channels;
 };
 
-struct Generator {
+struct Zone {
 	u32 sample_index;
+	u8 vel_range_low;
+	u8 vel_range_high;
+	u8 key_range_low;
+	u8 key_range_high;
+	u8 sample_mode;
 };
 
 struct PresetIndex {
@@ -34,7 +38,7 @@ struct PresetIndexCompare
 };
 
 struct Preset {
-	std::vector<Generator> generators;
+	std::vector<Zone> generators;
 };
 
 struct Soundfont

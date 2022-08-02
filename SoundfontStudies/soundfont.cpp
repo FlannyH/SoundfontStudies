@@ -232,6 +232,7 @@ bool Soundfont::from_file(std::string path) {
 		print_verbose("\tName: %s\n", preset_headers[p_id].preset_name);
 		print_verbose("\tMIDI program: %03u:%03u\n", preset_headers[p_id].bank, preset_headers[p_id].program);
 
+		Preset new_preset;
 		// Get bags
 		int n_p_bags = preset_headers[p_id + 1].pbag_index - preset_headers[p_id].pbag_index;
 		int instr_id = 0;
@@ -282,7 +283,7 @@ bool Soundfont::from_file(std::string path) {
 		int correction = 60 - sample_headers[x].original_key; // Note space
 		correction *= 100; // Cent space
 		correction += sample_headers[x].correction;
-		double corr_mul = (double)correction / 1200.0;
+		float corr_mul = (float)correction / 1200.0;
 		corr_mul = pow(2, corr_mul);
 		new_sample.base_sample_rate = sample_headers[x].sample_rate * corr_mul;
 
@@ -309,13 +310,13 @@ bool Soundfont::from_file(std::string path) {
 		new_sample.loop_end = sample_headers[x].loop_end_index - start;
 		print_verbose("\t%s:\n", sample_headers[x].name);
 		print_verbose("\tSample rate (before correction): %i\n", sample_headers[x].sample_rate);
-		print_verbose("\tSample rate (after correction): %i\n", new_sample.base_sample_rate);
+		print_verbose("\tSample rate (after correction): %f\n", new_sample.base_sample_rate);
 		print_verbose("\tSample data: %i - %i\n", sample_headers[x].start_index, sample_headers[x].end_index);
 		print_verbose("\tSample loop: %i - %i\n", sample_headers[x].loop_start_index, sample_headers[x].loop_end_index);
 		print_verbose("\tSample type: %i\n", sample_headers[x].type);
 		print_verbose("\tSample link: %i\n", sample_headers[x].sample_link);
 		print_verbose("\tPitch correction (cents): %i\n", correction);
-		print_verbose("\tPitch correction (percent): %i\n", corr_mul * 100.0);
+		print_verbose("\tPitch multiplier (percent): %0.3f%%\n", corr_mul * 100.0);
 
 		// Add to map
 		samples[sample_headers[x].name] = new_sample;
