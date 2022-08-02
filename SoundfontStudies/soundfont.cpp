@@ -5,8 +5,7 @@
 #define VERBOSE 1
 
 template<class... Args>
-void print_verbose(const char* fmt, Args... args)
-{
+void print_verbose(const char* fmt, Args... args) {
 #if VERBOSE
 	printf(fmt, args...);
 #endif
@@ -228,7 +227,6 @@ bool Soundfont::from_file(std::string path) {
 	// Load all the samples into the list
 	int x = 0;
 	while (1) {
-
 		Sample new_sample;
 
 		// Assume MIDI key number 60 to be the base key
@@ -278,15 +276,13 @@ bool Soundfont::from_file(std::string path) {
 		while (sample_headers[x].type == rightSample) {
 			x++;
 		}
-		if (strcmp(sample_headers[x].name, "EOS") == 0)
-		{
+		if (strcmp(sample_headers[x].name, "EOS") == 0) {
 			break;
 		}
 	}
 
 	print_verbose("\n--PRESETS--\n\n");
-	for (int p_id = 0; p_id < n_preset_headers - 1; p_id++)
-	{
+	for (int p_id = 0; p_id < n_preset_headers - 1; p_id++)	{
 		get_preset_from_index(p_id);
 	}
 
@@ -348,8 +344,7 @@ Preset Soundfont::get_preset_from_index(size_t index) {
 			uint16_t instrument_gen_end = instr_bags[instrument_index+1].generator_index;
 
 			// Loop over all instrument zone's values
-			for (uint16_t instrument_gen_index = instrument_gen_start; instrument_gen_index < instrument_gen_end; instrument_gen_index++)
-			{
+			for (uint16_t instrument_gen_index = instrument_gen_start; instrument_gen_index < instrument_gen_end; instrument_gen_index++) {
 				// Get name and value
 				std::string oper_name = SFGenerator_names[instr_gens[instrument_gen_index].oper];
 				GenAmountType oper_value = instr_gens[instrument_gen_index].amount;
@@ -417,8 +412,7 @@ Preset Soundfont::get_preset_from_index(size_t index) {
 	return final_preset;
 }
 
-void Soundfont::init_default_zone(std::map<std::string, GenAmountType>& preset_zone_generator_values)
-{
+void Soundfont::init_default_zone(std::map<std::string, GenAmountType>& preset_zone_generator_values) {
 	// Zero initialize everything
 	for (std::string& str : SFGenerator_names)
 		preset_zone_generator_values[str].u_amount = 0x0000;
@@ -445,8 +439,7 @@ void Soundfont::init_default_zone(std::map<std::string, GenAmountType>& preset_z
 };
 
 
-int main()
-{
+int main() {
 	Soundfont soundfont;
 	soundfont.from_file("../NewSoundFont.sf2");
 	return 0;

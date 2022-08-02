@@ -39,8 +39,7 @@ struct Preset {
 	std::vector<Zone> zones;
 };
 
-struct Soundfont
-{
+struct Soundfont {
 public:
 	std::map<u16, Preset> presets;
 	std::map<std::string, Sample> samples;

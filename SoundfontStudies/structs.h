@@ -15,18 +15,16 @@ struct ChunkID {
 	bool operator!=(const char* rhs) { return *(u32*)rhs != id; }
 };
 
-struct ChunkDataHandler
-{
+struct ChunkDataHandler {
 	u8* data_pointer = nullptr;
 	u32 chunk_bytes_left = 0;
 	bool from_buffer(u8* buffer_to_use, u32 size) {
 		data_pointer = buffer_to_use;
 		chunk_bytes_left = size;
 	}
-	bool from_file(FILE* file, u32 size)
-	{
-		if (size == 0)
-		{
+
+	bool from_file(FILE* file, u32 size) {
+		if (size == 0) {
 			return false;
 		}
 		data_pointer = (u8*)malloc(size);
@@ -35,9 +33,9 @@ struct ChunkDataHandler
 		chunk_bytes_left = size;
 		return true;
 	}
+
 	bool get_data(void* destination, u32 byte_count) {
-		if (chunk_bytes_left >= byte_count)
-		{
+		if (chunk_bytes_left >= byte_count)	{
 			if (destination != nullptr) { // Sending a nullptr is valid, it just discards byte_count number of bytes
 				memcpy(destination, data_pointer, byte_count);
 			}
@@ -55,10 +53,11 @@ struct Chunk {
 	bool from_file(FILE*& file) {
 		return fread_s(this, sizeof(*this), sizeof(*this), 1, file) > 0;
 	}
-	bool from_chunk_data_handler(ChunkDataHandler& chunk_data_handler)
-	{
+
+	bool from_chunk_data_handler(ChunkDataHandler& chunk_data_handler) {
 		return chunk_data_handler.get_data(this, sizeof(*this));
 	}
+
 	bool verify(const char* other_id) {
 		if (id != other_id) {
 			printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
@@ -87,8 +86,7 @@ struct sfBag {
 	u16 modulator_index;
 };
 
-struct SFModulator
-{
+struct SFModulator {
 	u16 index : 7;
 	u16 cc_flag : 1;
 	u16 direction : 1;
