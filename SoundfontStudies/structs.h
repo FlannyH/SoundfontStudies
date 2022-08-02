@@ -269,7 +269,7 @@ enum SFSampleLink : u16 {
 };
 
 struct sfSample {
-	u8 achSampleName[20];
+	char achSampleName[20];
 	u32 dwStart;
 	u32 dwEnd;
 	u32 dwStartloop;

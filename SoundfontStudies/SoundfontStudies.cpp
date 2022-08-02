@@ -5,7 +5,7 @@
 int main() {
 	// Open file
 	FILE* in_file;
-	fopen_s(&in_file, "D:\\Library\\Documents\\GitHub\\SoundfontStudies\\NewSoundFont.sf2", "rb"); // Todo: un-hardcode this
+	fopen_s(&in_file, "../NewSoundFont.sf2", "rb"); // Todo: un-hardcode this
 	if (!in_file) { printf("[ERROR] Could not open file!\n"); return 1; }
 
 	// Read RIFF chunk header
@@ -257,10 +257,15 @@ int main() {
 	}
 
 	printf("\n--SAMPLES--\n\n");
-	for (int x = 0; x < n_samples; x++) {
+	int x = 0;
+	while (1) {
 		printf("\t%s:\n", samples[x].achSampleName);
 		printf("\tSample rate: %i\n", samples[x].dwSampleRate);
 		printf("\tSample data: %i - %i\n", samples[x].dwStart, samples[x].dwEnd);
 		printf("\tSample loop: %i - %i\n", samples[x].dwStartloop, samples[x].dwEndloop);
+		if (strcmp(samples[++x].achSampleName, "EOS") == 0)
+		{
+			break;
+		}
 	}
 }
