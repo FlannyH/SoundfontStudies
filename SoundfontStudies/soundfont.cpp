@@ -176,7 +176,7 @@ bool Soundfont::from_file(std::string path) {
 				print_verbose("[INFO] Found %zu preset generator", chunk.size / sizeof(sfGenList));
 				if (chunk.size / sizeof(sfGenList) > 1) { print_verbose("s"); }
 			}
-			else if (chunk.id == "inst") { // Preset generator
+			else if (chunk.id == "inst") { // Instrument header
 				// Allocate enough space and copy the data into it
 				instruments = (sfInst*)malloc(chunk.size);
 				curr_chunk_data.get_data(instruments, chunk.size);
@@ -184,7 +184,7 @@ bool Soundfont::from_file(std::string path) {
 				print_verbose("[INFO] Found %zu instrument", chunk.size / sizeof(sfInst));
 				if (chunk.size / sizeof(sfInst) > 1) { print_verbose("s"); }
 			}
-			else if (chunk.id == "ibag") { // Preset generator
+			else if (chunk.id == "ibag") { // Instrument bag
 				// Allocate enough space and copy the data into it
 				instr_bags = (sfBag*)malloc(chunk.size);
 				curr_chunk_data.get_data(instr_bags, chunk.size);
@@ -192,7 +192,7 @@ bool Soundfont::from_file(std::string path) {
 				print_verbose("[INFO] Found %zu instrument bag", chunk.size / sizeof(sfBag));
 				if (chunk.size / sizeof(sfBag) > 1) { print_verbose("s"); }
 			}
-			else if (chunk.id == "imod") { // Preset generator
+			else if (chunk.id == "imod") { // Instrument modulator
 				// Allocate enough space and copy the data into it
 				instr_mods = (sfModList*)malloc(chunk.size);
 				curr_chunk_data.get_data(instr_mods, chunk.size);
@@ -200,7 +200,7 @@ bool Soundfont::from_file(std::string path) {
 				print_verbose("[INFO] Found %zu instrument modulator", chunk.size / sizeof(sfModList));
 				if (chunk.size / sizeof(sfModList) > 1) { print_verbose("s"); }
 			}
-			else if (chunk.id == "igen") { // Preset generator
+			else if (chunk.id == "igen") { // Instrument generator
 				// Allocate enough space and copy the data into it
 				instr_gens = (sfGenList*)malloc(chunk.size);
 				curr_chunk_data.get_data(instr_gens, chunk.size);
@@ -208,7 +208,7 @@ bool Soundfont::from_file(std::string path) {
 				print_verbose("[INFO] Found %zu instrument generator", chunk.size / sizeof(sfGenList));
 				if (chunk.size / sizeof(sfGenList) > 1) { print_verbose("s"); }
 			}
-			else if (chunk.id == "shdr") { // Preset generator
+			else if (chunk.id == "shdr") { // Sample headers
 				// Allocate enough space and copy the data into it
 				sample_headers = (sfSample*)malloc(chunk.size);
 				curr_chunk_data.get_data(sample_headers, chunk.size);
