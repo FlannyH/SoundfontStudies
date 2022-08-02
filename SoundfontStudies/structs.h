@@ -276,7 +276,7 @@ struct sfSample {
 	u32 loop_end_index;
 	u32 sample_rate;
 	u8 original_key;
-	u8 correction;
+	i8 correction;
 	u16 sample_link;
 	SFSampleLink type;
 };

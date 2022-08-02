@@ -20,6 +20,8 @@ struct fixed_32_32 {
 	fixed_32_32 operator=(const fixed_32_32& rhs) {
 		integer = rhs.integer;
 		fraction = rhs.fraction;
+		return *this;
+
 	}
 	bool operator==(const fixed_32_32& rhs) const {
 		return integer == rhs.integer && fraction == rhs.fraction;

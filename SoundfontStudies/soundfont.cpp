@@ -3,7 +3,7 @@
 #include "structs.h"
 #include <vector>
 
-#define VERBOSE 0
+#define VERBOSE 1
 
 template<class... Args>
 void print_verbose(const char* fmt, Args... args)
@@ -78,9 +78,9 @@ bool Soundfont::from_file(std::string path) {
 		}
 	}
 
-	printf("\n---sdta LIST---\n\n");
+	print_verbose("\n---sdta LIST---\n\n");
 	// There are 3 LIST chunks. The second one is the sdta list - contains raw sample data
-	u8* smpl_data = nullptr;
+	u16* smpl_data = nullptr;
 	{
 		// Read the chunk header
 		Chunk curr_chunk;
@@ -103,7 +103,7 @@ bool Soundfont::from_file(std::string path) {
 			if (!should_continue) { break; }
 
 			if (chunk.id == "smpl") { // Raw sample data
-				smpl_data = (u8*)malloc(chunk.size);
+				smpl_data = (u16*)malloc(chunk.size);
 				curr_chunk_data.get_data(smpl_data, chunk.size);
 				print_verbose("[INFO] Found sample data, %i bytes total\n", chunk.size);
 			}
@@ -123,7 +123,7 @@ bool Soundfont::from_file(std::string path) {
 	sfBag*				instr_bags		= nullptr;			int n_instr_bags	 = 0;
 	sfModList*			instr_mods		= nullptr;			int n_instr_mods	 = 0;
 	sfGenList*			instr_gens		= nullptr;			int n_instr_gens	 = 0;
-	sfSample*			samples			= nullptr;			int n_samples		 = 0;
+	sfSample*			sample_headers	= nullptr;			int n_samples		 = 0;
 	{
 		// Read the chunk header
 		Chunk curr_chunk;
@@ -151,7 +151,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(preset_headers, chunk.size);
 				n_preset_headers = chunk.size / sizeof(sfPresetHeader);
 				print_verbose("[INFO] Found %zu preset header", chunk.size / sizeof(sfPresetHeader));
-				if (chunk.size / sizeof(sfPresetHeader) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfPresetHeader) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "pbag") { // Preset bags
 				// Allocate enough space and copy the data into it
@@ -159,7 +159,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(preset_bags, chunk.size);
 				n_preset_bags = chunk.size / sizeof(sfBag);
 				print_verbose("[INFO] Found %zu preset bag", chunk.size / sizeof(sfBag));
-				if (chunk.size / sizeof(sfBag) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfBag) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "pmod") { // Preset modulators
 				// Allocate enough space and copy the data into it
@@ -167,7 +167,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(preset_mods, chunk.size);
 				n_preset_mods = chunk.size / sizeof(sfModList);
 				print_verbose("[INFO] Found %zu preset modulator", chunk.size / sizeof(sfModList));
-				if (chunk.size / sizeof(sfModList) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfModList) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "pgen") { // Preset generator
 				// Allocate enough space and copy the data into it
@@ -175,7 +175,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(preset_gens, chunk.size);
 				n_preset_gens = chunk.size / sizeof(sfGenList);
 				print_verbose("[INFO] Found %zu preset generator", chunk.size / sizeof(sfGenList));
-				if (chunk.size / sizeof(sfGenList) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfGenList) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "inst") { // Preset generator
 				// Allocate enough space and copy the data into it
@@ -183,7 +183,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(instruments, chunk.size);
 				n_instruments = chunk.size / sizeof(sfInst);
 				print_verbose("[INFO] Found %zu instrument", chunk.size / sizeof(sfInst));
-				if (chunk.size / sizeof(sfInst) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfInst) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "ibag") { // Preset generator
 				// Allocate enough space and copy the data into it
@@ -191,7 +191,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(instr_bags, chunk.size);
 				n_instr_bags = chunk.size / sizeof(sfBag);
 				print_verbose("[INFO] Found %zu instrument bag", chunk.size / sizeof(sfBag));
-				if (chunk.size / sizeof(sfBag) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfBag) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "imod") { // Preset generator
 				// Allocate enough space and copy the data into it
@@ -199,7 +199,7 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(instr_mods, chunk.size);
 				n_instr_mods = chunk.size / sizeof(sfModList);
 				print_verbose("[INFO] Found %zu instrument modulator", chunk.size / sizeof(sfModList));
-				if (chunk.size / sizeof(sfModList) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfModList) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "igen") { // Preset generator
 				// Allocate enough space and copy the data into it
@@ -207,15 +207,15 @@ bool Soundfont::from_file(std::string path) {
 				curr_chunk_data.get_data(instr_gens, chunk.size);
 				n_instr_gens = chunk.size / sizeof(sfGenList);
 				print_verbose("[INFO] Found %zu instrument generator", chunk.size / sizeof(sfGenList));
-				if (chunk.size / sizeof(sfGenList) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfGenList) > 1) { print_verbose("s"); }
 			}
 			else if (chunk.id == "shdr") { // Preset generator
 				// Allocate enough space and copy the data into it
-				samples = (sfSample*)malloc(chunk.size);
-				curr_chunk_data.get_data(samples, chunk.size);
+				sample_headers = (sfSample*)malloc(chunk.size);
+				curr_chunk_data.get_data(sample_headers, chunk.size);
 				n_samples = chunk.size / sizeof(sfSample);
 				print_verbose("[INFO] Found %zu sample", chunk.size / sizeof(sfSample));
-				if (chunk.size / sizeof(sfSample) > 1) { printf("s"); }
+				if (chunk.size / sizeof(sfSample) > 1) { print_verbose("s"); }
 			}
 			else { // Not a chunk we're interested in, skip it (unlikely in this list though)
 				curr_chunk_data.get_data(nullptr, chunk.size);
@@ -267,24 +267,71 @@ bool Soundfont::from_file(std::string path) {
 		}
 	}
 
-	if (!samples) {
+	if (!sample_headers) {
 		return false;
 	}
 
 	print_verbose("\n--SAMPLES--\n\n");
+	// Load all the samples into the list
 	int x = 0;
 	while (1) {
-		print_verbose("\t%s:\n", samples[x].name);
-		print_verbose("\tSample rate: %i\n", samples[x].sample_rate);
-		print_verbose("\tSample data: %i - %i\n", samples[x].start_index, samples[x].end_index);
-		print_verbose("\tSample loop: %i - %i\n", samples[x].loop_start_index, samples[x].loop_end_index);
-		if (strcmp(samples[++x].name, "EOS") == 0)
+
+		Sample new_sample;
+
+		// Assume MIDI key number 60 to be the base key
+		int correction = 60 - sample_headers[x].original_key; // Note space
+		correction *= 100; // Cent space
+		correction += sample_headers[x].correction;
+		double corr_mul = (double)correction / 1200.0;
+		corr_mul = pow(2, corr_mul);
+		new_sample.base_sample_rate = sample_headers[x].sample_rate * corr_mul;
+
+		// Allocate memory and copy the sample data into it
+		auto start = sample_headers[x].start_index;
+		new_sample.length = sample_headers[x].end_index - start;
+		new_sample.n_channels = (sample_headers[x].type == leftSample) ? 2 : 1;
+		size_t length = new_sample.length * sizeof(u16) * new_sample.n_channels;
+		new_sample.data = (u16*)malloc(new_sample.length * sizeof(u16) * new_sample.n_channels);
+		if (new_sample.n_channels == 1) {
+			memcpy_s(new_sample.data, length, &smpl_data[sample_headers[x].start_index], length);
+		}
+		if (new_sample.n_channels == 2) {
+			auto p_left = &smpl_data[sample_headers[x].start_index];
+			auto p_right = &smpl_data[sample_headers[sample_headers[x].sample_link].start_index];
+			for (int i = 0; i < new_sample.length; i += 1) {
+				new_sample.data[i * 2 + 0] = *(p_left++);
+				new_sample.data[i * 2 + 1] = *(p_right++);
+			}
+		}
+
+		// Loop data
+		new_sample.loop_start = sample_headers[x].loop_start_index - start;
+		new_sample.loop_end = sample_headers[x].loop_end_index - start;
+		print_verbose("\t%s:\n", sample_headers[x].name);
+		print_verbose("\tSample rate (before correction): %i\n", sample_headers[x].sample_rate);
+		print_verbose("\tSample rate (after correction): %i\n", new_sample.base_sample_rate);
+		print_verbose("\tSample data: %i - %i\n", sample_headers[x].start_index, sample_headers[x].end_index);
+		print_verbose("\tSample loop: %i - %i\n", sample_headers[x].loop_start_index, sample_headers[x].loop_end_index);
+		print_verbose("\tSample type: %i\n", sample_headers[x].type);
+		print_verbose("\tSample link: %i\n", sample_headers[x].sample_link);
+		print_verbose("\tPitch correction (cents): %i\n", correction);
+		print_verbose("\tPitch correction (percent): %i\n", corr_mul * 100.0);
+
+		// Add to map
+		samples[sample_headers[x].name] = new_sample;
+		
+		x++;
+		// Skip right samples, we handle those together with leftSample
+		while (sample_headers[x].type == rightSample) {
+			x++;
+		}
+		if (strcmp(sample_headers[x].name, "EOS") == 0)
 		{
 			break;
 		}
 	}
 
-
+	printf("Soundfont '%s' loaded succesfully!", path.c_str());
 
 	return true;
 }
@@ -292,6 +339,6 @@ bool Soundfont::from_file(std::string path) {
 int main()
 {
 	Soundfont soundfont;
-	soundfont.from_file("../NewSoundFont.sf2");
+	soundfont.from_file("../NewSoundfont.sf2");
 	return 0;
 }

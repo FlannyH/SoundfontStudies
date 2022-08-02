@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include "common.h"
 #include "fixed_32_32.h"
+#include <map>
 
 struct Sample {
 	u16* data;						// Can not be nullptr 
@@ -39,6 +40,6 @@ struct Preset {
 struct Soundfont
 {
 	std::unordered_map<PresetIndex, Preset, PresetIndexCompare> presets;
-	std::vector<Sample> samples;
+	std::map<std::string, Sample> samples;
 	bool from_file(std::string path);
 };
