@@ -36,6 +36,7 @@ A `Sample` is a data structure that contains:
 - The number of channels*
 #### Preset
 A `Preset` is a data structure that only contains a list of `Zone`, a collection of settings meant for a sampler to use.
+The map is indexed by a u16, with the bank number in the high byte, and the preset number in the low byte.
 
 #### Zone
 A `Zone` is a collection of settings meant for a software sampler. It has:
