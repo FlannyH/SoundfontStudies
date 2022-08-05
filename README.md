@@ -42,7 +42,7 @@ A `Zone` is a collection of settings meant for a software sampler. It has:
 
 - Key range
 - Velocity range
-- Sample index
+- Index of the sample (used to index the `Sample` array in `Soundfont`)
 - Root key offset
 - Sample loop enable flag
 - Stereo panning
