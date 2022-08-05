@@ -9,7 +9,7 @@
 - Quick example to load a soundfont:
 ```c++
 int main() {
-	Soundfont soundfont;
+	Flan::Soundfont soundfont;
 	soundfont.from_file("path/to/soundfont.sf2");
 }
 ```
