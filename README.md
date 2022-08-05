@@ -29,7 +29,7 @@ std::map<int, Sample> samples;
 #### Sample
 A `Sample` is a data structure that contains:
 
-- A pointer to raw 16-bit signed sample data
+- A pointer to raw 16-bit signed PCM sample data
 - A base sample rate (original root key and fine tuning are already applied here)
 - The length of the sample
 - The loop start and loop end of the sample
