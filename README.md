@@ -50,7 +50,7 @@ A `Zone` is a collection of settings meant for a software sampler. It has:
 - Tuning scale: how many semitones there are between each MIDI key
 - Initial attenuation** in linear space
 
-To determine which zones to use when playing a note, there are key ranges and velocity ranges. For a given `Preset`, you can loop over each `Zone`, check if the midi key and velocity are in-between or equal to those range values, and if they are, that note should be used for that note.
+To determine which zones to use when playing a note, there are key ranges and velocity ranges. For a given `Preset`, you can loop over each `Zone`, check if the midi key and velocity are in-between or equal to those range values, and if they are, that zone should be used for that note.
 
 *Subject to change
 **Not entirely sure how this should be implemented in a synthesizer myself.
