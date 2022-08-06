@@ -54,8 +54,6 @@ A `Zone` is a collection of settings meant for a software sampler. It has:
 - Stereo panning
 - Volume envelopes: Delay, Attack, Hold, Decay, Sustain, and Release values. All in either `1.0 / time in seconds` or `Linear volume multiplier`
 - Tuning scale: how many semitones there are between each MIDI key
-- Initial attenuation* in linear space
+- Initial attenuation* in linear space (not sure how to properly implement this in a synthesizer myself)
 
 To determine which zones to use when playing a note, there are key ranges and velocity ranges. For a given `Preset`, you can loop over each `Zone`, check if the midi key and velocity are in-between or equal to those range values, and if they are, that zone should be used for that note.
-
-*Not entirely sure how this should be implemented in a synthesizer myself.
