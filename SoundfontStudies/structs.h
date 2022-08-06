@@ -4,33 +4,49 @@
 #include <vector>
 
 namespace Flan {
+    enum SFSampleLink : u16 {
+        monoSample = 1,
+        rightSample = 2,
+        leftSample = 4,
+        linkedSample = 8,
+        RomMonoSample = 0x8001,
+        RomRightSample = 0x8002,
+        RomLeftSample = 0x8004,
+        RomLinkedSample = 0x8008
+    };
+
     struct Sample {
-        i16* data;						// Pointer to the sample data. Should always be a valid pointer
-        float base_sample_rate;			// In samples per second
-        u32 length;						// In samples
-        u32 loop_start;					// In samples
-        u32 loop_end;					// In samples
-        u8 n_channels;					// Number of audio channels, 1 = mono, 2 = stereo
+        i16* data;                        // Pointer to the sample data - should always be a valid pointer
+        i16* linked;                      // Pointer to linked sample data - only used if sample link type is not monoSample
+        float base_sample_rate;           // In samples per second
+        u32 length;                       // In samples
+        u32 loop_start;                   // In samples
+        u32 loop_end;                     // In samples
+        Flan::SFSampleLink type;          // Sample link type
     };
 
     struct Zone {
-        u8 key_range_low = 0;		// Lowest MIDI key in this zone
-        u8 key_range_high = 127;	// Highest MIDI key in this zone
-        u8 vel_range_low = 0;		// Lowest possible velocity in this zone
-        u8 vel_range_high = 0;		// Highest possible velocity in this zone
-        u32 sample_index = 0;		// Which sample in the Soundfont::samples array the zone uses
-        i32 root_key_offset = 0;    // Root key relative to sample's root key
-        bool loop_enable = false;	// True if sample loops, False if sample does not loop
-        float pan = 0.0f;			// -1.0f for full left, +1.0f for full right, 0.0f for center
-        float delay = 0.001;        // 1.0 / Delay duration in seconds
-        float attack = 0.001;		// 1.0 / Attack duration in seconds
-        float hold = 0.001;			// 1.0 / Hold duration in seconds
-        float decay = 0.001;		// 1.0 / Decay duration in seconds
-        float sustain = 0.0;		// Sustain volume
-        float release = 0.001;		// 1.0 / Release duration in seconds
-        float scale_tuning = 1.0f;	// Difference in semitones between each MIDI note
-        float tuning = 0.0f;		// Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
-        float init_attenuation;     // Initial note volume
+        u8 key_range_low = 0;		      // Lowest MIDI key in this zone
+        u8 key_range_high = 127;	      // Highest MIDI key in this zone
+        u8 vel_range_low = 0;		      // Lowest possible velocity in this zone
+        u8 vel_range_high = 0;		      // Highest possible velocity in this zone
+        u32 sample_index = 0;		      // Which sample in the Soundfont::samples array the zone uses
+        i32 sample_start_offset = 0;      // Apparently this is a thing, instrument zones can offset
+        i32 sample_end_offset = 0;        // the sample start, end, loop start, and loop end with a
+        i32 sample_loop_start_offset = 0; // generator setting, wack. Add these to the corresponding
+        i32 sample_loop_end_offset = 0;   // variables in the sample struct during runtime.
+        i32 root_key_offset = 0;          // Root key relative to sample's root key
+        bool loop_enable = false;	      // True if sample loops, False if sample does not loop
+        float pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
+        float delay = 0.001f;             // 1.0 / Delay duration in seconds
+        float attack = 0.001f;	          // 1.0 / Attack duration in seconds
+        float hold = 0.001f;		      // 1.0 / Hold duration in seconds
+        float decay = 0.001f;		      // 1.0 / Decay duration in seconds
+        float sustain = 0.0f;		      // Sustain volume
+        float release = 0.001f;		      // 1.0 / Release duration in seconds
+        float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
+        float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
+        float init_attenuation;           // Initial note volume
     };
 
     struct PresetIndex {
@@ -296,17 +312,6 @@ namespace Flan {
         u16 bag_index;
     };
 
-    enum SFSampleLink : u16 {
-        monoSample = 1,
-        rightSample = 2,
-        leftSample = 4,
-        linkedSample = 8,
-        RomMonoSample = 0x8001,
-        RomRightSample = 0x8002,
-        RomLeftSample = 0x8004,
-        RomLinkedSample = 0x8008
-    };
-
     struct sfSample {
         char name[20];
         u32 start_index;
@@ -318,6 +323,18 @@ namespace Flan {
         i8 correction;
         u16 sample_link;
         SFSampleLink type;
+    };
+
+    struct RawSoundfontData {
+        sfPresetHeader* preset_headers = nullptr;   int n_preset_headers = 0;
+        sfBag* preset_bags = nullptr;               int n_preset_bags = 0;
+        sfModList* preset_mods = nullptr;           int n_preset_mods = 0;
+        sfGenList* preset_gens = nullptr;           int n_preset_gens = 0;
+        sfInst* instruments = nullptr;              int n_instruments = 0;
+        sfBag* instr_bags = nullptr;                int n_instr_bags = 0;
+        sfModList* instr_mods = nullptr;            int n_instr_mods = 0;
+        sfGenList* instr_gens = nullptr;            int n_instr_gens = 0;
+        sfSample* sample_headers = nullptr;         int n_samples = 0;
     };
 }
 #pragma pack(pop)
