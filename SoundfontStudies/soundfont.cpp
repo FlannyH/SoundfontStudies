@@ -442,7 +442,7 @@ namespace Flan {
                     100.0f / powf(2.0f, (float)final_zone_generator_values["releaseVolEnv"].s_amount / 1200.0f),
                     (float)final_zone_generator_values["scaleTuning"].s_amount / 100.0f,
                     (float)final_zone_generator_values["coarseTune"].s_amount + (float)final_zone_generator_values["fineTune"].s_amount / 100.0f,
-                    (float)final_zone_generator_values["initialAttenuation"].u_amount / 25.0f,
+                    (float)final_zone_generator_values["initialAttenuation"].s_amount / 10.0f,
                 };
 
                 // Add to final preset
