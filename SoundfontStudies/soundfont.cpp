@@ -311,6 +311,7 @@ namespace Flan {
         std::map<std::string, GenAmountType> preset_global_generator_values;
         std::map<std::string, GenAmountType> instrument_global_generator_values;
         Preset final_preset;
+        final_preset.name = raw_sf.preset_headers[index].preset_name;
 
         // Get preset zones from index
         uint16_t preset_zone_start = raw_sf.preset_headers[index].pbag_index;
@@ -404,8 +405,8 @@ namespace Flan {
                     if (entry.first == "overridingRootKey" || entry.first != "pan" || entry.first != "coarseTune" || entry.first != "fineTune") {
                         final_zone_generator_values[entry.first].s_amount += entry.second.s_amount;
                         continue;
-                        final_zone_generator_values[entry.first] = entry.second;
                     }
+                    final_zone_generator_values[entry.first] = entry.second;
                 }
 
                 if (final_zone_generator_values["overridingRootKey"].s_amount == -1)
@@ -430,12 +431,12 @@ namespace Flan {
                     1.0f / powf(2.0f, (float)final_zone_generator_values["delayVolEnv"].s_amount / 1200.0f),
                     1.0f / powf(2.0f, (float)final_zone_generator_values["attackVolEnv"].s_amount / 1200.0f),
                     1.0f / powf(2.0f, (float)final_zone_generator_values["holdVolEnv"].s_amount / 1200.0f),
-                    1.0f / powf(2.0f, (float)final_zone_generator_values["decayVolEnv"].s_amount / 1200.0f),
-                    std::max(0.0f, powf(2, (float)final_zone_generator_values["sustainVolEnv"].u_amount / -60.0f)),
-                    1.0f / powf(2.0f, (float)final_zone_generator_values["releaseVolEnv"].s_amount / 1200.0f),
+                    100.0f / powf(2.0f, (float)final_zone_generator_values["decayVolEnv"].s_amount / 1200.0f),
+                    0.0f - final_zone_generator_values["sustainVolEnv"].u_amount / 10.0f,
+                    100.0f / powf(2.0f, (float)final_zone_generator_values["releaseVolEnv"].s_amount / 1200.0f),
                     (float)final_zone_generator_values["scaleTuning"].s_amount / 100.0f,
                     (float)final_zone_generator_values["coarseTune"].s_amount + (float)final_zone_generator_values["fineTune"].s_amount / 100.0f,
-                    std::max(0.0f, powf(2, (float)final_zone_generator_values["initialAttenuation"].u_amount / -60.0f)),
+                    (float)final_zone_generator_values["initialAttenuation"].u_amount / 25.0f,
                 };
 
                 // Add to final preset
@@ -470,10 +471,12 @@ namespace Flan {
         preset_zone_generator_values["decayVolEnv"].s_amount = -12000;
         preset_zone_generator_values["releaseVolEnv"].s_amount = -12000;
         preset_zone_generator_values["keyRange"].ranges = { 0, 127 };
+        preset_zone_generator_values["velRange"].ranges = { 0, 127 };
         preset_zone_generator_values["keynum"].s_amount = -1;
         preset_zone_generator_values["velocity"].s_amount = -1;
         preset_zone_generator_values["scaleTuning"].u_amount = 100;
         preset_zone_generator_values["overridingRootKey"].s_amount = -1;
+        preset_zone_generator_values["initialAttenuation"].u_amount = 0;
     }
 
     void Soundfont::clear() {

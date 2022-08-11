@@ -38,15 +38,15 @@ namespace Flan {
         i32 root_key_offset = 0;          // Root key relative to sample's root key
         bool loop_enable = false;	      // True if sample loops, False if sample does not loop
         float pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
-        float delay = 0.001f;             // 1.0 / Delay duration in seconds
-        float attack = 0.001f;	          // 1.0 / Attack duration in seconds
-        float hold = 0.001f;		      // 1.0 / Hold duration in seconds
-        float decay = 0.001f;		      // 1.0 / Decay duration in seconds
-        float sustain = 0.0f;		      // Sustain volume
-        float release = 0.001f;		      // 1.0 / Release duration in seconds
+        float delay = 0.001f;             // Delay in 1.0 / seconds
+        float attack = 0.001f;	          // Attack in 1.0 / seconds
+        float hold = 0.001f;		      // Hold in 1.0 / seconds
+        float decay = 0.001f;		      // Decay in dB per second
+        float sustain = 0.0f;		      // Sustain volume in dB (where a value of -6 dB means 0.5x volume, and -12 dB means 0.25x volume)
+        float release = 0.001f;		      // Release in dB per second
         float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
         float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
-        float init_attenuation;           // Initial note volume
+        float init_attenuation = 0.0f;    // Value to subtract from note volume in dB (where a value of +15 dB means 0.5x volume, and +30 dB means 0.25x volume)
     };
 
     struct PresetIndex {
@@ -55,6 +55,7 @@ namespace Flan {
     };
 
     struct Preset {
+        std::string name;
         std::vector<Zone> zones;
     };
 
