@@ -2,6 +2,8 @@
 #include "soundfont.h"
 #include <iostream>
 #include <vector>
+#include <algorithm>
+#include <cassert>
 
 #define VERBOSE 1
 #define PRINT_AT_ALL 0
@@ -374,39 +376,43 @@ namespace Flan {
                 std::map<std::string, GenAmountType> final_zone_generator_values;
                 init_default_zone(final_zone_generator_values);
 
-                // Based on experiments in Viena SoundFont Editor, and personal ways of implementing
-                std::vector<std::string> values_that_add_relative({ "overridingRootKey", "pan", "coarseTune", "fineTune" });
-
-                // Apply global instrument zone
+                // Apply global instrument zone to final zone
                 for (auto& entry : instrument_global_generator_values) {
                     final_zone_generator_values[entry.first] = entry.second;
                 }
 
-                // Apply current instrument zone
+                // Apply current instrument zone to final zone
                 for (auto& entry : instrument_zone_generator_values) {
                     final_zone_generator_values[entry.first] = entry.second;
                 }
 
-                // Apply global preset zone
+                // Apply global preset zone to current preset zone
                 for (auto& entry : preset_global_generator_values) {
-                    if (entry.first == "velRange" || entry.first == "keyRange")
-                        continue;
-                    if (entry.first == "overridingRootKey" || entry.first != "pan" || entry.first != "coarseTune" || entry.first != "fineTune") {
-                        final_zone_generator_values[entry.first].s_amount += entry.second.s_amount;
-                        continue;
+                    if (preset_zone_generator_values.find(entry.first) == preset_zone_generator_values.end()) {
+                        preset_zone_generator_values[entry.first] = entry.second;
                     }
-                    final_zone_generator_values[entry.first] = entry.second;
                 }
 
                 // Apply current preset zone
                 for (auto& entry : preset_zone_generator_values) {
-                    if (entry.first == "velRange" || entry.first == "keyRange")
-                        continue;
-                    if (entry.first == "overridingRootKey" || entry.first != "pan" || entry.first != "coarseTune" || entry.first != "fineTune") {
+                    // Get index in flag array from the string
+                    int index = -1;
+                    while (SFGenerator_names[++index] != entry.first) {}
+                    assert(index >= 0 && index < 59);
+
+                    // Get flags
+                    GenFlags flags = gen_flags[index];
+                    if (flags.instr_only) continue;
+                    switch (flags.apply_mode)
+                    {
+                    case add:
                         final_zone_generator_values[entry.first].s_amount += entry.second.s_amount;
-                        continue;
+                        break;
+                    case clamp_range:
+                        final_zone_generator_values[entry.first].ranges.low = std::max(entry.second.ranges.low, final_zone_generator_values[entry.first].ranges.low);
+                        final_zone_generator_values[entry.first].ranges.high = std::min(entry.second.ranges.high, final_zone_generator_values[entry.first].ranges.high);
+                        break;
                     }
-                    final_zone_generator_values[entry.first] = entry.second;
                 }
 
                 if (final_zone_generator_values["overridingRootKey"].s_amount == -1)

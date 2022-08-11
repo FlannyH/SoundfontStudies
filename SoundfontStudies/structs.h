@@ -291,6 +291,78 @@ namespace Flan {
         "endOpe",
     };
 
+    enum GenApplyMode :u8 {
+        add,
+        clamp_range,
+    };
+
+    struct GenFlags {
+        u8 instr_only : 1;
+        GenApplyMode apply_mode : 2;
+    };
+
+    static GenFlags gen_flags[59] = {
+        GenFlags{true, add}, // 0
+        GenFlags{true, add},
+        GenFlags{true, add},
+        GenFlags{true, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 5
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 10
+        GenFlags{false, add},
+        GenFlags{true, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 15
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 20
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 25
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 30
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 35
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add}, // 40
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, clamp_range},
+        GenFlags{false, clamp_range},
+        GenFlags{true, add}, // 45
+        GenFlags{true, add},
+        GenFlags{true, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{true, add}, // 50
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{false, add},
+        GenFlags{true, add},
+        GenFlags{false, add}, // 55
+        GenFlags{false, add},
+        GenFlags{true, add},
+        GenFlags{true, add},
+    };
+
     enum SFTransform : u16 {
         linear = 0,
         absolute_value = 2,
