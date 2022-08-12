@@ -52,8 +52,8 @@ A `Zone` is a collection of settings meant for a software sampler. It has:
 - Root key offset, relative to the `Sample`'s root key
 - Sample loop enable flag
 - Stereo panning
-- Volume envelopes: Delay, Attack, Hold, Decay, Sustain, and Release values. All in either `1.0 / time in seconds` or `Linear volume multiplier`
+- Volume envelopes: Delay, Attack, Hold, Decay, Sustain, and Release values. All in either `1.0 / time in seconds`, `volume in dB` or `dB per second` (note: usually 6 dB = 0.5x)
 - Tuning scale: how many semitones there are between each MIDI key
-- Initial attenuation* in linear space (not sure how to properly implement this in a synthesizer myself)
+- Initial attenuation: volume in dB to subtract from zone volume (note: usually 15 dB = 0.5x)
 
 To determine which zones to use when playing a note, there are key ranges and velocity ranges. For a given `Preset`, you can loop over each `Zone`, check if the midi key and velocity are in-between or equal to those range values, and if they are, that zone should be used for that note.
