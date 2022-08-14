@@ -86,6 +86,7 @@ namespace Flan {
                 stage = (float)(Release);
                 value -= env_params.release * dt;
                 if (value <= -100.0f) {
+                    value = -100.0f;
                     stage = (float)Off;
                 }
                 break;
@@ -127,6 +128,8 @@ namespace Flan {
         i32 sample_loop_end_offset = 0;   // variables in the sample struct during runtime.
         i32 root_key_offset = 0;          // Root key relative to sample's root key
         bool loop_enable = false;	      // True if sample loops, False if sample does not loop
+        u8 key_override = 255;            // If value is below 128, this zone always plays as if it were triggered by this MIDI key.
+        u8 vel_override = 255;            // If value is below 128, this zone always plays as if it were triggered with this velocity.
         float pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
         EnvParams vol_env;                // Volume envelope
         EnvParams mod_env;                // Modulator envelope
@@ -136,7 +139,12 @@ namespace Flan {
         float mod_env_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator envelope will apply
         float mod_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
         float mod_lfo_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator lfo will apply
+        float mod_lfo_to_volume = 0;      // The max radius in dB that the modulator lfo will make the volume rise and fall
         float vib_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
+        float key_to_vol_env_hold = 0.0f; // Envelope Hold change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        float key_to_vol_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        float key_to_mod_env_hold = 0.0f; // Envelope Hold change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        float key_to_mod_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
         float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
         float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
         float init_attenuation = 0.0f;    // Value to subtract from note volume in dB (where a value of +15 dB means 0.5x volume, and +30 dB means 0.25x volume)

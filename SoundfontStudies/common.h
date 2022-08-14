@@ -10,3 +10,10 @@
 #define i64 int64_t
 #define f32 float
 #define f64 double
+
+namespace Flan {
+    template<typename T>
+    T lerp(T a, T b, float t) {
+        return a + (b - a) * t;
+    }
+}
