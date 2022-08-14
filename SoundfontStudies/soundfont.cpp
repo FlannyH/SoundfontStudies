@@ -462,6 +462,10 @@ namespace Flan {
                         8.176f * powf(2.0f, (float)final_zone_generator_values["freqModLFO"].s_amount / 1200.0f),
                         powf(2.0f, (float)final_zone_generator_values["delayModLFO"].s_amount / 1200.0f),
                     },
+                    LowPassFilter{
+                        8.176f * powf(2.0f, (float)final_zone_generator_values["initialFilterFc"].s_amount / 1200.0f),
+                        powf(2, (float)final_zone_generator_values["initialFilterQ"].s_amount / 150.0f),
+                    },
                     (float)final_zone_generator_values["modEnvToPitch"].s_amount,
                     (float)final_zone_generator_values["modEnvToFilterFc"].s_amount,
                     (float)final_zone_generator_values["modLfoToPitch"].s_amount,
@@ -495,7 +499,7 @@ namespace Flan {
             preset_zone_generator_values[str].u_amount = 0x0000;
 
         // Handle non zero values
-        preset_zone_generator_values["initialFilterFc"].s_amount = -12000;
+        preset_zone_generator_values["initialFilterFc"].s_amount = 13500;
         preset_zone_generator_values["delayModLFO"].s_amount = -12000;
         preset_zone_generator_values["delayVibLFO"].s_amount = -12000;
         preset_zone_generator_values["delayModEnv"].s_amount = -12000;

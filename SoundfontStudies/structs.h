@@ -2,6 +2,7 @@
 #include "common.h"
 #include <string>
 #include <vector>
+#include <algorithm>
 
 namespace Flan {
     enum SFSampleLink : u16 {
@@ -116,6 +117,34 @@ namespace Flan {
         }
     };
 
+    struct LowPassFilter {
+        float cutoff = 20005.f;
+        float resonance = 0.0f;
+        float state1[2] = { 0.0f, 0.0f };
+        float state2[2] = { 0.0f, 0.0f };
+        void Update(float dt, float& input_l, float& input_r) {
+            const float feedback = (resonance + resonance / (1.0f - cutoff));
+            const float TWO_PI_FC = 2.0f * 3.141592653589f * cutoff * dt;
+            float a = TWO_PI_FC / (TWO_PI_FC + 1);
+
+            // Left channel
+            state1[0] += a * (input_l - state1[0] + feedback * (state1[0] - state2[0]));
+            state2[0] += a * (state1[0] - state2[0]);
+            input_l = state2[0];
+
+            // Right channel
+            state1[1] += a * (input_r - state1[1] + feedback * (state1[1] - state2[1]));
+            state2[1] += a * (state1[1] - state2[1]);
+            input_r = state2[1];
+
+
+            state1[0] = std::clamp(state1[0], -50.0f, +50.0f);
+            state1[1] = std::clamp(state1[1], -50.0f, +50.0f);
+            state2[0] = std::clamp(state2[0], -50.0f, +50.0f);
+            state2[1] = std::clamp(state2[1], -50.0f, +50.0f);
+        }
+    };
+
     struct Zone {
         u8 key_range_low = 0;		      // Lowest MIDI key in this zone
         u8 key_range_high = 127;	      // Highest MIDI key in this zone
@@ -135,6 +164,7 @@ namespace Flan {
         EnvParams mod_env;                // Modulator envelope
         LfoParams vib_lfo;                // Volume LFO
         LfoParams mod_lfo;                // Modulator LFO
+        LowPassFilter filter;             // Filter base settings
         float mod_env_to_pitch = 0;       // The max sample pitch shift in cents that the modulator envelope will apply
         float mod_env_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator envelope will apply
         float mod_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
