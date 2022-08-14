@@ -48,29 +48,29 @@ namespace Flan {
     struct EnvState {
         float stage = (float)Delay;    // Current stage in ADSR. If floored to an integer and casted to ADSRstage, you get the actual ADSRstage as an enum
         float value = 0.0f;    // Current envelope volume value in dB
-        void Update(EnvParams& env_params, float time_per_sample, bool correct_attack_phase) {
+        void Update(EnvParams& env_params, float dt, bool correct_attack_phase) {
             // Get ADSR stage as enum
             EnvStage stage_enum = (EnvStage)((u8)stage);
 
             // Update volume envelope - the idea is that the adsr_timer goes from 1.0 - 0.0 for every state
             switch (stage_enum) {
             case Delay:
-                stage = std::min((float)Attack, stage + env_params.delay * time_per_sample);
+                stage = std::min((float)Attack, stage + env_params.delay * dt);
                 value = -100.0f;
                 break;
             case Attack:
-                stage = std::min((float)Hold, stage + env_params.attack * time_per_sample);
+                stage = std::min((float)Hold, stage + env_params.attack * dt);
                 if (correct_attack_phase)
                     value = 6 * log2f(stage - (float)Attack);
                 else
                     value = -100.0f + 100 * (stage - (float)Attack);
                 break;
             case Hold:
-                stage = std::min((float)Decay, stage + env_params.hold * time_per_sample);
+                stage = std::min((float)Decay, stage + env_params.hold * dt);
                 value = 0.0f;
                 break;
             case Decay:
-                value -= env_params.decay * time_per_sample;
+                value -= env_params.decay * dt;
                 if (value < env_params.sustain) {
                     value = env_params.sustain;
                     stage = (float)(Sustain);
@@ -84,11 +84,33 @@ namespace Flan {
             case Release:
                 // This stage will continue until the volume is 0.0f
                 stage = (float)(Release);
-                value -= env_params.release * time_per_sample;
+                value -= env_params.release * dt;
                 if (value <= -100.0f) {
                     stage = (float)Off;
                 }
                 break;
+            }
+        }
+    };
+
+    struct LfoParams {
+        float freq = 8.2f;
+        float delay = 0.0f;
+    };
+
+    struct LfoState {
+        float time = 0.0;
+        float state = 0.0f;
+        void Update(LfoParams& lfo_params, float dt) {
+            // Step time
+            time += dt;
+
+            // Handle delay
+            if (time < lfo_params.delay) {
+                state = 0.0f;
+            }
+            else {
+                state = sinf((time - lfo_params.delay) * lfo_params.freq * 2.0f * 3.14159265359f);
             }
         }
     };
@@ -108,8 +130,13 @@ namespace Flan {
         float pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
         EnvParams vol_env;                // Volume envelope
         EnvParams mod_env;                // Modulator envelope
+        LfoParams vib_lfo;                // Volume LFO
+        LfoParams mod_lfo;                // Modulator LFO
         float mod_env_to_pitch = 0;       // The max sample pitch shift in cents that the modulator envelope will apply
         float mod_env_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator envelope will apply
+        float mod_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
+        float mod_lfo_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator lfo will apply
+        float vib_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
         float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
         float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
         float init_attenuation = 0.0f;    // Value to subtract from note volume in dB (where a value of +15 dB means 0.5x volume, and +30 dB means 0.25x volume)

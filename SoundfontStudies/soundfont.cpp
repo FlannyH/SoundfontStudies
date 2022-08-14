@@ -450,8 +450,21 @@ namespace Flan {
                         0.0f - final_zone_generator_values["sustainModEnv"].u_amount / 10.0f,
                         100.0f / powf(2.0f, (float)final_zone_generator_values["releaseModEnv"].s_amount / 1200.0f),
                     },
+                    LfoParams{
+                        //freq, intensity, delay
+                        8.176f * powf(2.0f, (float)final_zone_generator_values["freqVibLFO"].s_amount / 1200.0f),
+                        powf(2.0f, (float)final_zone_generator_values["delayVibLFO"].s_amount / 1200.0f),
+                    },
+                    LfoParams{
+                        //freq, intensity, delay
+                        8.176f * powf(2.0f, (float)final_zone_generator_values["freqModLFO"].s_amount / 1200.0f),
+                        powf(2.0f, (float)final_zone_generator_values["delayModLFO"].s_amount / 1200.0f),
+                    },
                     (float)final_zone_generator_values["modEnvToPitch"].s_amount,
                     (float)final_zone_generator_values["modEnvToFilterFc"].s_amount,
+                    (float)final_zone_generator_values["modLfoToPitch"].s_amount,
+                    (float)final_zone_generator_values["modLfoToFilterFc"].s_amount,
+                    (float)final_zone_generator_values["vibLfoToPitch"].s_amount,
                     (float)final_zone_generator_values["scaleTuning"].s_amount / 100.0f,
                     (float)final_zone_generator_values["coarseTune"].s_amount + (float)final_zone_generator_values["fineTune"].s_amount / 100.0f,
                     (float)final_zone_generator_values["initialAttenuation"].s_amount / 10.0f,
