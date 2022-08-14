@@ -25,6 +25,74 @@ namespace Flan {
         Flan::SFSampleLink type;          // Sample link type
     };
 
+    struct EnvParams {
+        float delay = 0.001f;             // Delay in 1.0 / seconds
+        float attack = 0.001f;	          // Attack in 1.0 / seconds
+        float hold = 0.001f;		      // Hold in 1.0 / seconds
+        float decay = 0.001f;		      // Decay in dB per second
+        float sustain = 0.0f;		      // Sustain volume in dB (where a value of -6 dB means 0.5x volume, and -12 dB means 0.25x volume)
+        float release = 0.001f;		      // Release in dB per second
+    };
+
+    enum EnvStage : u8
+    {
+        Delay = 0,// Hold volume at 0.0
+        Attack,   // Slowly rise from 0.0 to 1.0
+        Hold,     // Hold at 1.0
+        Decay,    // Decay from 1.0 to Sustain
+        Sustain,  // Hold at Sustain until note_off
+        Release,  // Decay from Sustain to 0.0
+        Off,      // Oscillator is not playing, meaning the oscillator is free
+    };
+
+    struct EnvState {
+        float stage = (float)Delay;    // Current stage in ADSR. If floored to an integer and casted to ADSRstage, you get the actual ADSRstage as an enum
+        float value = 0.0f;    // Current envelope volume value in dB
+        void Update(EnvParams& env_params, float time_per_sample, bool correct_attack_phase) {
+            // Get ADSR stage as enum
+            EnvStage stage_enum = (EnvStage)((u8)stage);
+
+            // Update volume envelope - the idea is that the adsr_timer goes from 1.0 - 0.0 for every state
+            switch (stage_enum) {
+            case Delay:
+                stage = std::min((float)Attack, stage + env_params.delay * time_per_sample);
+                value = -100.0f;
+                break;
+            case Attack:
+                stage = std::min((float)Hold, stage + env_params.attack * time_per_sample);
+                if (correct_attack_phase)
+                    value = 6 * log2f(stage - (float)Attack);
+                else
+                    value = -100.0f + 100 * (stage - (float)Attack);
+                break;
+            case Hold:
+                stage = std::min((float)Decay, stage + env_params.hold * time_per_sample);
+                value = 0.0f;
+                break;
+            case Decay:
+                value -= env_params.decay * time_per_sample;
+                if (value < env_params.sustain) {
+                    value = env_params.sustain;
+                    stage = (float)(Sustain);
+                }
+                break;
+            case Sustain:
+                // This stage will stay until note_off
+                stage = (float)(Sustain);
+                value = env_params.sustain;
+                break;
+            case Release:
+                // This stage will continue until the volume is 0.0f
+                stage = (float)(Release);
+                value -= env_params.release * time_per_sample;
+                if (value <= -100.0f) {
+                    stage = (float)Off;
+                }
+                break;
+            }
+        }
+    };
+
     struct Zone {
         u8 key_range_low = 0;		      // Lowest MIDI key in this zone
         u8 key_range_high = 127;	      // Highest MIDI key in this zone
@@ -38,12 +106,10 @@ namespace Flan {
         i32 root_key_offset = 0;          // Root key relative to sample's root key
         bool loop_enable = false;	      // True if sample loops, False if sample does not loop
         float pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
-        float delay = 0.001f;             // Delay in 1.0 / seconds
-        float attack = 0.001f;	          // Attack in 1.0 / seconds
-        float hold = 0.001f;		      // Hold in 1.0 / seconds
-        float decay = 0.001f;		      // Decay in dB per second
-        float sustain = 0.0f;		      // Sustain volume in dB (where a value of -6 dB means 0.5x volume, and -12 dB means 0.25x volume)
-        float release = 0.001f;		      // Release in dB per second
+        EnvParams vol_env;                // Volume envelope
+        EnvParams mod_env;                // Modulator envelope
+        float mod_env_to_pitch = 0;       // The max sample pitch shift in cents that the modulator envelope will apply
+        float mod_env_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator envelope will apply
         float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
         float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
         float init_attenuation = 0.0f;    // Value to subtract from note volume in dB (where a value of +15 dB means 0.5x volume, and +30 dB means 0.25x volume)
