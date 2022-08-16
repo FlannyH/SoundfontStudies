@@ -96,8 +96,8 @@ namespace Flan {
     };
 
     struct LfoParams {
-        float freq = 8.2f;
-        float delay = 0.0f;
+        float freq = 8.2f; // Frequency in Hz
+        float delay = 0.0f; // Delay in seconds
     };
 
     struct LfoState {
@@ -177,7 +177,7 @@ namespace Flan {
         float key_to_mod_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
         float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
         float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
-        float init_attenuation = 0.0f;    // Value to subtract from note volume in dB (where a value of +15 dB means 0.5x volume, and +30 dB means 0.25x volume)
+        float init_attenuation = 0.0f;    // Value to subtract from note volume in cB
     };
 
     struct PresetIndex {
@@ -198,6 +198,13 @@ namespace Flan {
         static constexpr u32 from_string(const char* v) {
             return *(u32*)v;
         }
+        bool verify(const char* other_id) {
+            if (*this != other_id) {
+                printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
+                exit(1);
+            }
+            return *this == other_id;
+        }
         bool operator==(const ChunkID& rhs) { return id == rhs.id; }
         bool operator!=(const ChunkID& rhs) { return id == rhs.id; }
         bool operator==(const char* rhs) { return *(u32*)rhs == id; }
@@ -207,6 +214,10 @@ namespace Flan {
     struct ChunkDataHandler {
         u8* data_pointer = nullptr;
         u32 chunk_bytes_left = 0;
+        u8* original_pointer = nullptr;
+        ~ChunkDataHandler() {
+            free(original_pointer);
+        }
         bool from_buffer(u8* buffer_to_use, u32 size) {
             data_pointer = buffer_to_use;
             chunk_bytes_left = size;
@@ -216,7 +227,8 @@ namespace Flan {
             if (size == 0) {
                 return false;
             }
-            data_pointer = (u8*)malloc(size);
+            original_pointer = (u8*)malloc(size);
+            data_pointer = original_pointer;
             if (data_pointer == 0) { return false; }
             fread_s(data_pointer, size, size, 1, file);
             chunk_bytes_left = size;
@@ -248,10 +260,7 @@ namespace Flan {
         }
 
         bool verify(const char* other_id) {
-            if (id != other_id) {
-                printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
-            }
-            return id == other_id;
+            return id.verify(other_id);
         }
     };
 #pragma pack(push, 1)
@@ -539,6 +548,60 @@ namespace Flan {
         sfModList* instr_mods = nullptr;            int n_instr_mods = 0;
         sfGenList* instr_gens = nullptr;            int n_instr_gens = 0;
         sfSample* sample_headers = nullptr;         int n_samples = 0;
+    };
+
+    struct RiffChunk {
+        ChunkID type;
+        u32 size;
+        ChunkID name;
+        void from_file(FILE* file) {
+            fread_s(this, sizeof(*this), sizeof(*this), 1, file);
+        }
+    };
+
+    struct dlsInsh {
+        u32 region_count;
+        u32 bank_id;
+        u32 instr_id;
+    };
+
+    enum dlsArticulatorDefines : u16 {
+        // Generic Sources,
+        CONN_SRC_NONE = 0x0000,
+        CONN_SRC_LFO = 0x0001,
+        CONN_SRC_KEYONVELOCITY = 0x0002,
+        CONN_SRC_KEYNUMBER = 0x0003,
+        CONN_SRC_EG1 = 0x0004,
+        CONN_SRC_EG2 = 0x0005,
+        CONN_SRC_PITCHWHEEL = 0x0006,
+        // Midi Controllers 0-127,
+        CONN_SRC_CC1 = 0x0081,
+        CONN_SRC_CC7 = 0x0087,
+        CONN_SRC_CC10 = 0x008a,
+        CONN_SRC_CC11 = 0x008b,
+        // Generic Destinations,
+        CONN_DST_NONE = 0x0000,
+        CONN_DST_ATTENUATION = 0x0001,
+        CONN_DST_RESERVED = 0x0002,
+        CONN_DST_PITCH = 0x0003,
+        CONN_DST_PAN = 0x0004,
+        // LFO Destinations,
+        CONN_DST_LFO_FREQUENCY = 0x0104,
+        CONN_DST_LFO_STARTDELAY = 0x0105,
+        // EG1 Destinations,
+        CONN_DST_EG1_ATTACKTIME = 0x0206,
+        CONN_DST_EG1_DECAYTIME = 0x0207,
+        CONN_DST_EG1_RESERVED = 0x0208,
+        CONN_DST_EG1_RELEASETIME = 0x0209,
+        CONN_DST_EG1_SUSTAINLEVEL = 0x020a,
+        // EG2 Destinations,
+        CONN_DST_EG2_ATTACKTIME = 0x030a,
+        CONN_DST_EG2_DECAYTIME = 0x030b,
+        CONN_DST_EG2_RESERVED = 0x030c,
+        CONN_DST_EG2_RELEASETIME = 0x030d,
+        CONN_DST_EG2_SUSTAINLEVEL = 0x030e,
+        CONN_TRN_NONE = 0x0000,
+        CONN_TRN_CONCAVE = 0x0001
     };
 }
 #pragma pack(pop)

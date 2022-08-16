@@ -22,8 +22,34 @@ namespace Flan {
 #endif
     }
 
+    float freq32_to_hz(const i32 scale)
+    {
+        return powf(2.f, ((((float)scale / 65536.f) - 6900.f) / 1200.f) * 440.f);
+    }
+
+    float tc32_to_seconds(const i32 scale)
+    {
+        return powf(2.f, scale / (1200.f * 65536.f));
+    }
+    float tc32_to_cents(const i32 scale)
+    {
+        return powf(2.f, scale / (1200.f * 65536.f));
+    }
+
+    float fixed32_to_float(const i32 scale) {
+        return (float)scale / (float)0x10000;
+    }
 
     bool Soundfont::from_file(std::string path) {
+        std::string extension = path.substr(path.find_last_of('.'));
+        if (extension == ".sf2")
+            return from_sf2(path);
+        if (extension == ".dls")
+            return from_dls(path);
+    }
+
+    bool Soundfont::from_sf2(std::string path)
+    {
         // We use this for easy data sharing between functions, without exposing this to the end user
         RawSoundfontData raw_sf{};
 
@@ -289,7 +315,7 @@ namespace Flan {
 
         print_verbose("\n--PRESETS--\n\n");
         for (int p_id = 0; p_id < raw_sf.n_preset_headers - 1; p_id++) {
-            get_preset_from_index(p_id, raw_sf);
+            get_sf2_preset_from_index(p_id, raw_sf);
         }
 
         if (!raw_sf.sample_headers) {
@@ -308,7 +334,344 @@ namespace Flan {
         return true;
     }
 
-    Preset Soundfont::get_preset_from_index(size_t index, RawSoundfontData& raw_sf) {
+    bool Soundfont::from_dls(std::string path)
+    {
+        // Open file
+        FILE* in_file;
+        fopen_s(&in_file, path.c_str(), "rb"); // Todo: un-hardcode this
+        if (!in_file) { print("[ERROR] Could not open file!\n"); return false; }
+
+        // Read RIFF chunk header
+        RiffChunk riff_chunk;
+        riff_chunk.from_file(in_file);
+        riff_chunk.type.verify("RIFF");
+        riff_chunk.name.verify("DLS ");
+
+        // Load the entire file into RAM for quick access
+        ChunkDataHandler dls_file;
+        dls_file.from_file(in_file, riff_chunk.size);
+
+        // Loop over all the chunks and store them
+        u32 n_instruments = -1;
+        while (true)
+        {
+            // Try to get the next chunk. If it doesn't exist, we're done
+            Chunk chunk;
+            if (!chunk.from_chunk_data_handler(dls_file)) {
+                break;
+            }
+
+            // Collection header chunk
+            if (chunk.id == "colh") {
+                dls_file.get_data(&n_instruments, sizeof(u32));
+            }
+
+            // List chunk
+            else if (chunk.id == "LIST")
+            {
+                // Get subchunk
+                ChunkID subchunk_id;
+                dls_file.get_data(&subchunk_id, sizeof(ChunkID));
+
+                if (subchunk_id == "lins") {
+                    handle_dls_instr(n_instruments, dls_file);
+                }
+            }
+
+            // Otherwise, ignore the chunk
+            else {
+                dls_file.get_data(nullptr, chunk.size);
+            }
+        }
+
+        return false;
+    }
+
+    void Soundfont::handle_dls_instr(const uint32_t& n_instruments, Flan::ChunkDataHandler& dls_file, std::map<u32, Sample>& _samples)
+    {
+        std::map<u16, Preset> _presets;
+        for (int x = 0; x < n_instruments; x++)
+        {
+            // Get riff chunk
+            RiffChunk ins;
+            dls_file.get_data(&ins, sizeof(ins));
+
+            // Create preset
+            Preset preset{};
+            dlsInsh insh{};
+
+            Zone global_zone{};
+            Zone default_zone{};
+
+            u8* chunk_end = dls_file.data_pointer + ins.size - 4;
+
+            while (dls_file.data_pointer < chunk_end) {
+                // Get chunk
+                Chunk chunk;
+                dls_file.get_data(&chunk, sizeof(chunk));
+
+                if (chunk.id == "insh") {
+                    // Get instrument header
+                    dls_file.get_data(&insh, sizeof(insh));
+                    printf("instrument %03i:%03i\n", insh.bank_id, insh.instr_id);
+                }
+                else if (chunk.id == "LIST") {
+                    // Get name of list
+                    ChunkID id;
+                    dls_file.get_data(&id, sizeof(id));
+
+                    if (id == "lrgn") {
+                        handle_dls_lrgn(dls_file, insh, _samples, preset);
+                    }
+                    else if (id == "lart") {
+                        // Get chunk
+                        Chunk id;
+                        id.from_chunk_data_handler(dls_file);
+                        id.verify("art1");
+
+                        handle_art1(dls_file, global_zone);
+                    }
+                    else if (id == "INFO") {
+                        // Get end of chunk
+                        u8* end_chunk = dls_file.data_pointer+ chunk.size - 4;
+                        while (dls_file.data_pointer < end_chunk) {
+                            // Get chunk
+                            Chunk subchunk;
+                            subchunk.from_chunk_data_handler(dls_file);
+
+                            // Get name
+                            if (subchunk.id == "INAM") {
+                                preset.name.resize(subchunk.size);
+                                dls_file.get_data(preset.name.data(), subchunk.size);
+                            }
+                            if ((intptr_t)(dls_file.data_pointer) % 2 == 1) {
+                                dls_file.data_pointer++;
+                            }
+                        }
+                    }
+                    else {
+                        dls_file.get_data(nullptr, chunk.size - 4);
+                    }
+                }
+                else {
+                    dls_file.get_data(nullptr, chunk.size);
+                }
+
+                if ((intptr_t)(dls_file.data_pointer) % 2 == 1) {
+                    dls_file.data_pointer++;
+                }
+            }
+
+            // Combine global and preset zones
+            for (Zone& zone : preset.zones)
+            {
+                Zone final_zone = global_zone;
+                final_zone.key_range_low    = zone.key_range_low ;
+                final_zone.key_range_high   = zone.key_range_high;
+                final_zone.vel_range_low    = zone.vel_range_low ;
+                final_zone.vel_range_high   = zone.vel_range_high;
+                final_zone.root_key_offset  = zone.root_key_offset;
+                final_zone.tuning           = zone.tuning ;
+                final_zone.init_attenuation = zone.init_attenuation;
+                final_zone.loop_enable      = zone.loop_enable ;
+                final_zone.sample_index     = zone.sample_index;
+                zone = final_zone;
+            }
+
+            insh.bank_id >>= 11;
+            if ((insh.bank_id & 0x100000) > 0)
+                insh.bank_id += 128 - 0x100000;
+            _presets[insh.bank_id << 8 | insh.instr_id] = preset;
+        }
+        presets = _presets;
+    }
+
+    void Soundfont::handle_dls_lrgn(Flan::ChunkDataHandler& dls_file, struct dlsInsh& insh, std::map<uint32_t, Flan::Sample>& samples, Flan::Preset& preset)
+    {
+        std::vector<Zone> preset_zones;
+        std::string name;
+
+        // Get regions
+        for (int reg_idx = 0; reg_idx < insh.region_count; reg_idx++)
+        {
+            // Create new zone
+            Zone zone{};
+            Sample sample{};
+
+            // Get start and end number of bytes so we don't go out of the list
+            RiffChunk rgn;
+            dls_file.get_data(&rgn, sizeof(rgn));
+            rgn.type.verify("LIST");
+            rgn.name.verify("rgn ");
+            u8* region_end = dls_file.data_pointer + rgn.size - 4;
+
+            // Fill zone with parameters
+            while (dls_file.data_pointer < region_end) {
+                // Handle region chunk ids
+                Chunk chunk;
+                dls_file.get_data(&chunk, sizeof(chunk));
+
+                if (chunk.id == "rgnh") {
+                    // Get region header
+                    struct {
+                        u16 key_low;
+                        u16 key_high;
+                        u16 vel_low;
+                        u16 vel_high;
+                        u16 options; //ignored
+                        u16 key_group; //ignored
+                    } rgnh;
+                    dls_file.get_data(&rgnh, sizeof(rgnh));
+
+                    // Add parameters to zone
+                    zone.key_range_low = rgnh.key_low;
+                    zone.key_range_high = rgnh.key_high;
+                    zone.vel_range_low = rgnh.vel_low;
+                    zone.vel_range_high = rgnh.vel_high;
+                }
+                else if (chunk.id == "wsmp") {
+                    // Get region header
+                    struct {
+                        u32 struct_size;
+                        u16 root_key;
+                        i16 fine_tune;
+                        i32 attenuation;
+                        u32 options; //ignored
+                        u32 loop_mode;
+                    } wsmp;
+                    struct {
+                        u32 wsloop_size = 0; //should be 16
+                        u32 loop_type = 0; // always forward loop
+                        u32 loop_start = 0; // absolute offset in data chunk
+                        u32 loop_length = 0;
+                    } loop_hdr;
+                    dls_file.get_data(&wsmp, sizeof(wsmp));
+                    if (wsmp.loop_mode == 1) {
+                        dls_file.get_data(&loop_hdr, sizeof(loop_hdr));
+                    }
+
+                    // Add parameters to zone
+                    zone.root_key_offset = (i32)wsmp.root_key - 60;
+                    zone.tuning = ((float)wsmp.fine_tune / (float)0x10000) / 100.f;
+                    zone.init_attenuation = -((float)wsmp.attenuation / (float)0xA0000);
+                    zone.loop_enable = wsmp.loop_mode;
+                    sample.loop_start = loop_hdr.loop_start;
+                    sample.loop_end = loop_hdr.loop_start + loop_hdr.loop_length;
+                }
+                else if (chunk.id == "wlnk") {
+                    // Get region header
+                    struct {
+                        u16 options; //ignore
+                        u16 phase_group; //ignore
+                        u32 channel; //level 1 dls doesnt support stereo, ignore
+                        u32 smpl_idx;
+                    } wsmp;
+                    dls_file.get_data(&wsmp, sizeof(wsmp));
+                    sample.type = leftSample;
+                    zone.sample_index = wsmp.smpl_idx;
+                }
+                else if (chunk.id == "art1") {
+                    handle_art1(dls_file, zone);
+                }
+                else {
+                    dls_file.get_data(nullptr, chunk.size);
+                }
+            }
+            samples[zone.sample_index] = sample;
+            preset.zones.push_back(zone);
+        }
+    }
+
+    void Soundfont::handle_art1(Flan::ChunkDataHandler& dls_file, Zone& zone)
+    {
+        // Get number of connection blocks
+        u32 cb_size;
+        u32 n_connection_blocks;
+        dls_file.get_data(&cb_size, sizeof(u32));
+        dls_file.get_data(&n_connection_blocks, sizeof(u32));
+
+        // Loop over all the connection blocks
+        for (int cb_idx = 0; cb_idx < n_connection_blocks; cb_idx++) {
+            struct {
+                dlsArticulatorDefines source;
+                dlsArticulatorDefines control;
+                dlsArticulatorDefines destination;
+                dlsArticulatorDefines transform;
+                i32 scale;
+            } block;
+            dls_file.get_data(&block, sizeof(block));
+
+            //LFO Section
+            if (block.source == CONN_SRC_NONE       && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_LFO_FREQUENCY) { // LFO frequency
+                zone.mod_lfo.freq = freq32_to_hz(block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE  && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_LFO_STARTDELAY) { // LFO start delay
+                zone.mod_lfo.delay = tc32_to_seconds(block.scale);
+            }
+            else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_ATTENUATION) { // LFO attenuation scale
+                zone.mod_lfo_to_volume = fixed32_to_float(block.scale) / 10.f;
+            }
+            else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_PITCH) { // LFO pitch scale
+                zone.mod_lfo_to_pitch = fixed32_to_float(block.scale);
+            }
+            /*else if (block.source == CONN_SRC_LFO && block.control == CONN_SRC_CC1 && block.destination == CONN_DST_ATTENUATION) { // LFO attenuation scale
+                zone.mod_lfo_to_volume = fixed32_to_float(block.scale) / 10.f;
+            }
+            else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_CC1    && block.destination == CONN_DST_PITCH) { // LFO pitch scale
+                zone.mod_lfo_to_volume = fixed32_to_float(block.scale);
+            }*/ // not sure what to do with these
+            // Envelope 1 (volume)
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_ATTACKTIME) { // Vol attack
+                zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
+                zone.vol_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
+                printf("raw volenvdecay value: %X\n", block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_SUSTAINLEVEL) { // Vol sustain
+                zone.vol_env.sustain = std::max(-100.f, 6.f * log2f(fixed32_to_float(block.scale) / 1000.f));
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_RELEASETIME) { // Vol release
+                zone.vol_env.release = 96.0f / tc32_to_seconds(block.scale);
+            }
+            /*else if (block.source == CONN_SRC_KEYONVELOCITY && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_ATTACKTIME) { // Vol attack
+                zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
+            }*/ // no equivalent in sf2 i think
+            else if (block.source == CONN_SRC_KEYNUMBER && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
+                zone.key_to_vol_env_decay = (float)block.scale / 65536.f / 128.f; // (65536 for fixed16.16, 128 for number of keys); 
+                printf("zone.key_to_vol_env_decay: %f\n", zone.key_to_vol_env_decay);
+                int x = 0;
+            }
+            // Envelope 2 (modulator)
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Vol attack
+                zone.mod_env.attack = 1.0f / tc32_to_seconds(block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_DECAYTIME) { // Vol decay
+                zone.mod_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_SUSTAINLEVEL) { // Vol sustain
+                zone.mod_env.sustain = std::max(-100.f, 6.f * log2f(fixed32_to_float(block.scale) / 1000.f));
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_RELEASETIME) { // Vol release
+                zone.mod_env.release = 96.0f / tc32_to_seconds(block.scale);
+            }
+            /*else if (block.source == CONN_SRC_KEYONVELOCITY && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Vol attack
+                zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
+            }*/ // no equivalent in sf2 i think
+            else if (block.source == CONN_SRC_EG2 && block.control == CONN_SRC_NONE && block.destination == CONN_DST_PITCH) { // Vol decay
+                zone.mod_env_to_pitch = tc32_to_cents(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
+            }
+
+            int x = 0;
+        }
+
+        // Correct decay based on key vol env decay
+        printf("zone.vol_env.decay = %f before\n", zone.vol_env.decay);
+        zone.vol_env.decay *= powf(2, -zone.key_to_vol_env_decay * (60) / (1200));
+        printf("zone.vol_env.decay = %f after\n", zone.vol_env.decay);
+    }
+
+    Preset Soundfont::get_sf2_preset_from_index(size_t index, RawSoundfontData& raw_sf) {
         // Prepare misc variables
         std::map<std::string, GenAmountType> preset_global_generator_values;
         std::map<std::string, GenAmountType> instrument_global_generator_values;
@@ -421,7 +784,7 @@ namespace Flan {
                 }
 
                 // Parse zone to custom zone format
-                Zone new_zone_to_add{
+                Zone new_zone_to_add {
                     final_zone_generator_values["keyRange"].ranges.low,
                     final_zone_generator_values["keyRange"].ranges.high,
                     final_zone_generator_values["velRange"].ranges.low,
@@ -526,14 +889,5 @@ namespace Flan {
         free(sample_data);
         samples.clear();
         presets.clear();
-    }
-    ;
-
-    /*
-    int main() {
-        Soundfont soundfont;
-        soundfont.from_file("../NewSoundFont.sf2");
-        return 0;
-    }
-    */
+    };
 }
