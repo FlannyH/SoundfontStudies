@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cassert>
 
-#define VERBOSE 1
+#define VERBOSE 0
 #define PRINT_AT_ALL 0
 
 namespace Flan {
@@ -351,6 +351,10 @@ namespace Flan {
         ChunkDataHandler dls_file;
         dls_file.from_file(in_file, riff_chunk.size);
 
+        // Create sample map - we'll convert this to a sample vector later
+        std::map<u32, Sample> _samples;
+        std::vector<u32> pool_table_offsets;
+
         // Loop over all the chunks and store them
         u32 n_instruments = -1;
         while (true)
@@ -374,8 +378,29 @@ namespace Flan {
                 dls_file.get_data(&subchunk_id, sizeof(ChunkID));
 
                 if (subchunk_id == "lins") {
-                    handle_dls_instr(n_instruments, dls_file);
+                    handle_dls_instr(n_instruments, dls_file, _samples);
                 }
+
+                else if (subchunk_id == "wvpl") {
+                    // We got sample data, let's save it
+                    sample_data = (i16*)malloc(chunk.size - 4);
+                    memcpy_s(sample_data, chunk.size - 4, dls_file.data_pointer, chunk.size - 4);
+                }
+            }
+
+            // Pool table chunk
+            else if (chunk.id == "ptbl")
+            {
+                // Get ptbl header
+                struct {
+                    u32 structure_size;
+                    u32 n_cues;
+                } ptbl;
+                dls_file.get_data(&ptbl, sizeof(ptbl));
+
+                // Get pool cues - each pool_table_offset points to a wave-list
+                pool_table_offsets.resize(ptbl.n_cues);
+                dls_file.get_data(pool_table_offsets.data(), ptbl.n_cues * sizeof(u32));
             }
 
             // Otherwise, ignore the chunk
@@ -384,7 +409,79 @@ namespace Flan {
             }
         }
 
-        return false;
+        // Aight we got through the entire file somehow. Let's put all the samples together now
+        samples.resize(pool_table_offsets.size());
+        for (int i = 0; i < pool_table_offsets.size(); i++) {
+            // Get wave chunk
+            RiffChunk wave;
+            memcpy_s(&wave, sizeof(wave), ((u8*)sample_data) + pool_table_offsets[i], sizeof(wave));
+
+            // Create a chunk handler for this for easy access - I'm too paranoid to assume everything is in order after reading the DLS spec
+            ChunkDataHandler wave_handler;
+            wave_handler.from_buffer(((u8*)sample_data) + pool_table_offsets[i] + sizeof(RiffChunk), wave.size - 4);
+
+            // Here's the data we're hoping to collect from the pool cue
+            struct {
+                u16 format_tag = 0;
+                u16 n_channels = 0;
+                u32 sample_rate = 0;
+                u32 byte_rate = 0;
+                u16 block_align = 0;
+                u16 bits_per_sample = 0;
+            } fmt;
+            struct {
+                u32 struct_size = 0;
+                u16 root_key = 0;
+                i16 fine_tune = 0;
+                i32 attenuation = 0;
+                u32 options = 0; //ignored
+                u32 loop_mode = 0;
+            } wsmp;
+            struct {
+                u32 wsloop_size = 0; //should be 16
+                u32 loop_type = 0; // always forward loop
+                u32 loop_start = 0; // absolute offset in data chunk
+                u32 loop_length = 0;
+            } loop_hdr;
+            i16* _sample_data = nullptr;
+            int sample_byte_length = 0;
+
+            // Loop over each chunk
+            Chunk chunk;
+            while (chunk.from_chunk_data_handler(wave_handler)) {
+                if (chunk.id == "fmt ") {
+                    wave_handler.get_data(&fmt, sizeof(fmt));
+                    wave_handler.get_data(nullptr, chunk.size - sizeof(fmt)); // no idea why this is necessary but it is
+                    int x = 6;
+                }
+                else if (chunk.id == "wsmp") {
+                    wave_handler.get_data(&wsmp, sizeof(wsmp));
+                    if (wsmp.loop_mode == 1) {
+                        wave_handler.get_data(&loop_hdr, sizeof(loop_hdr));
+                    }
+                }
+                else if (chunk.id == "data") {
+                    _sample_data = (i16*)wave_handler.data_pointer;
+                    wave_handler.get_data(nullptr, chunk.size);
+                    sample_byte_length = chunk.size;
+                }
+                else {
+                    wave_handler.get_data(nullptr, chunk.size);
+                }
+            }
+
+            // Assemble a sample from this
+            samples[i] = {
+                _sample_data,
+                _sample_data,
+                (float)fmt.sample_rate * exp2f(((60.f - (float)wsmp.root_key) / 12.f) + (wsmp.fine_tune / 1200.f)),
+                sample_byte_length * fmt.sample_rate / fmt.byte_rate,
+                loop_hdr.loop_start,
+                loop_hdr.loop_start + loop_hdr.loop_length,
+            };
+        }
+
+        return true;
     }
 
     void Soundfont::handle_dls_instr(const uint32_t& n_instruments, Flan::ChunkDataHandler& dls_file, std::map<u32, Sample>& _samples)
@@ -413,7 +510,6 @@ namespace Flan {
                 if (chunk.id == "insh") {
                     // Get instrument header
                     dls_file.get_data(&insh, sizeof(insh));
-                    printf("instrument %03i:%03i\n", insh.bank_id, insh.instr_id);
                 }
                 else if (chunk.id == "LIST") {
                     // Get name of list
@@ -465,22 +561,42 @@ namespace Flan {
             // Combine global and preset zones
             for (Zone& zone : preset.zones)
             {
+                if (insh.bank_id >= 0x80000000) {
+                    volatile int x = 0;
+                }
                 Zone final_zone = global_zone;
-                final_zone.key_range_low    = zone.key_range_low ;
-                final_zone.key_range_high   = zone.key_range_high;
-                final_zone.vel_range_low    = zone.vel_range_low ;
-                final_zone.vel_range_high   = zone.vel_range_high;
-                final_zone.root_key_offset  = zone.root_key_offset;
-                final_zone.tuning           = zone.tuning ;
-                final_zone.init_attenuation = zone.init_attenuation;
-                final_zone.loop_enable      = zone.loop_enable ;
-                final_zone.sample_index     = zone.sample_index;
+                // Only apply local zone if it's not still the default
+                if (zone.mod_lfo.freq           != default_zone.mod_lfo.freq          ) {final_zone.mod_lfo.freq           = zone.mod_lfo.freq          ;}
+                if (zone.mod_lfo.delay          != default_zone.mod_lfo.delay         ) {final_zone.mod_lfo.delay          = zone.mod_lfo.delay         ;}
+                if (zone.mod_lfo_to_volume      != default_zone.mod_lfo_to_volume     ) {final_zone.mod_lfo_to_volume      = zone.mod_lfo_to_volume     ;}
+                if (zone.mod_lfo_to_pitch       != default_zone.mod_lfo_to_pitch      ) {final_zone.mod_lfo_to_pitch       = zone.mod_lfo_to_pitch      ;}
+                if (zone.mod_lfo_to_volume      != default_zone.mod_lfo_to_volume     ) {final_zone.mod_lfo_to_volume      = zone.mod_lfo_to_volume     ;}
+                if (zone.mod_lfo_to_volume      != default_zone.mod_lfo_to_volume     ) {final_zone.mod_lfo_to_volume      = zone.mod_lfo_to_volume     ;}
+                if (zone.vol_env.attack         != default_zone.vol_env.attack        ) {final_zone.vol_env.attack         = zone.vol_env.attack        ;}
+                if (zone.vol_env.decay          != default_zone.vol_env.decay         ) {final_zone.vol_env.decay          = zone.vol_env.decay         ;}
+                if (zone.vol_env.sustain        != default_zone.vol_env.sustain       ) {final_zone.vol_env.sustain        = zone.vol_env.sustain       ;}
+                if (zone.vol_env.release        != default_zone.vol_env.release       ) {final_zone.vol_env.release        = zone.vol_env.release       ;}
+                if (zone.key_to_vol_env_decay   != default_zone.key_to_vol_env_decay  ) {final_zone.key_to_vol_env_decay   = zone.key_to_vol_env_decay  ;}
+                if (zone.mod_env.attack         != default_zone.mod_env.attack        ) {final_zone.mod_env.attack         = zone.mod_env.attack        ;}
+                if (zone.mod_env.decay          != default_zone.mod_env.decay         ) {final_zone.mod_env.decay          = zone.mod_env.decay         ;}
+                if (zone.mod_env.sustain        != default_zone.mod_env.sustain       ) {final_zone.mod_env.sustain        = zone.mod_env.sustain       ;}
+                if (zone.mod_env.release        != default_zone.mod_env.release       ) {final_zone.mod_env.release        = zone.mod_env.release       ;}
+                if (zone.mod_env_to_pitch       != default_zone.mod_env_to_pitch      ) {final_zone.mod_env_to_pitch       = zone.mod_env_to_pitch      ;}
+                if (zone.key_range_low          != default_zone.key_range_low         ) {final_zone.key_range_low          = zone.key_range_low         ;}
+                if (zone.key_range_high         != default_zone.key_range_high        ) {final_zone.key_range_high         = zone.key_range_high        ;}
+                if (zone.vel_range_low          != default_zone.vel_range_low         ) {final_zone.vel_range_low          = zone.vel_range_low         ;}
+                if (zone.vel_range_high         != default_zone.vel_range_high        ) {final_zone.vel_range_high         = zone.vel_range_high        ;}
+                if (zone.sample_index           != default_zone.sample_index          ) {final_zone.sample_index           = zone.sample_index          ;}
+                if (zone.init_attenuation       != default_zone.init_attenuation      ) {final_zone.init_attenuation       = zone.init_attenuation      ;}
+                if (zone.loop_enable            != default_zone.loop_enable           ) {final_zone.loop_enable            = zone.loop_enable           ;}
                 zone = final_zone;
             }
 
-            insh.bank_id >>= 11;
-            if ((insh.bank_id & 0x100000) > 0)
-                insh.bank_id += 128 - 0x100000;
+            print("insh.bank_id = 0x%04X,\t", insh.bank_id);
+            print("insh.instr_id = 0x%04X,\t\n", insh.instr_id);
+            insh.bank_id >>= 8;
+            if ((insh.bank_id & 0x800000) > 0)
+                insh.bank_id += 128 - 0x800000;
             _presets[insh.bank_id << 8 | insh.instr_id] = preset;
         }
         presets = _presets;
@@ -551,8 +667,8 @@ namespace Flan {
                     }
 
                     // Add parameters to zone
-                    zone.root_key_offset = (i32)wsmp.root_key - 60;
-                    zone.tuning = ((float)wsmp.fine_tune / (float)0x10000) / 100.f;
+                    //zone.root_key_offset = (i32)wsmp.root_key - 60;
+                    //zone.tuning = ((float)wsmp.fine_tune / (float)0x10000) / 100.f;
                     zone.init_attenuation = -((float)wsmp.attenuation / (float)0xA0000);
                     zone.loop_enable = wsmp.loop_mode;
                     sample.loop_start = loop_hdr.loop_start;
@@ -569,6 +685,27 @@ namespace Flan {
                     dls_file.get_data(&wsmp, sizeof(wsmp));
                     sample.type = leftSample;
                     zone.sample_index = wsmp.smpl_idx;
+                }
+                else if (chunk.id == "LIST")
+                {
+                    // Get name of list
+                    ChunkID id;
+                    dls_file.get_data(&id, sizeof(id));
+
+                    // This should be the only on here
+                    if (id == "lart") {
+                        // Get chunk
+                        Chunk id;
+                        id.from_chunk_data_handler(dls_file);
+                        id.verify("art1");
+
+                        handle_art1(dls_file, zone);
+                    }
+
+                    else {
+                        dls_file.get_data(nullptr, chunk.size - 4);
+                    }
+
                 }
                 else if (chunk.id == "art1") {
                     handle_art1(dls_file, zone);
@@ -626,7 +763,6 @@ namespace Flan {
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
                 zone.vol_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
-                printf("raw volenvdecay value: %X\n", block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_SUSTAINLEVEL) { // Vol sustain
                 zone.vol_env.sustain = std::max(-100.f, 6.f * log2f(fixed32_to_float(block.scale) / 1000.f));
@@ -638,9 +774,7 @@ namespace Flan {
                 zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
             }*/ // no equivalent in sf2 i think
             else if (block.source == CONN_SRC_KEYNUMBER && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
-                zone.key_to_vol_env_decay = (float)block.scale / 65536.f / 128.f; // (65536 for fixed16.16, 128 for number of keys); 
-                printf("zone.key_to_vol_env_decay: %f\n", zone.key_to_vol_env_decay);
-                int x = 0;
+                zone.key_to_vol_env_decay = -(float)block.scale / 65536.f / 128.f; // (65536 for fixed16.16, 128 for number of keys); 
             }
             // Envelope 2 (modulator)
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Vol attack
@@ -666,9 +800,7 @@ namespace Flan {
         }
 
         // Correct decay based on key vol env decay
-        printf("zone.vol_env.decay = %f before\n", zone.vol_env.decay);
-        zone.vol_env.decay *= powf(2, -zone.key_to_vol_env_decay * (60) / (1200));
-        printf("zone.vol_env.decay = %f after\n", zone.vol_env.decay);
+        zone.vol_env.decay *= powf(2, zone.key_to_vol_env_decay * (60) / (1200));
     }
 
     Preset Soundfont::get_sf2_preset_from_index(size_t index, RawSoundfontData& raw_sf) {

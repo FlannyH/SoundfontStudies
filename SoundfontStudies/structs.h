@@ -27,12 +27,12 @@ namespace Flan {
     };
 
     struct EnvParams {
-        float delay = 0.001f;             // Delay in 1.0 / seconds
-        float attack = 0.001f;	          // Attack in 1.0 / seconds
-        float hold = 0.001f;		      // Hold in 1.0 / seconds
-        float decay = 0.001f;		      // Decay in dB per second
+        float delay = 1000.0f;             // Delay in 1.0 / seconds
+        float attack = 1000.0f;	          // Attack in 1.0 / seconds
+        float hold = 1000.0f;		      // Hold in 1.0 / seconds
+        float decay = 0.0f;		      // Decay in dB per second
         float sustain = 0.0f;		      // Sustain volume in dB (where a value of -6 dB means 0.5x volume, and -12 dB means 0.25x volume)
-        float release = 0.001f;		      // Release in dB per second
+        float release = 1000.0f;		      // Release in dB per second
     };
 
     enum EnvStage : u8
@@ -201,7 +201,6 @@ namespace Flan {
         bool verify(const char* other_id) {
             if (*this != other_id) {
                 printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
-                exit(1);
             }
             return *this == other_id;
         }
@@ -219,8 +218,11 @@ namespace Flan {
             free(original_pointer);
         }
         bool from_buffer(u8* buffer_to_use, u32 size) {
+            if (buffer_to_use == nullptr)
+                return false;
             data_pointer = buffer_to_use;
             chunk_bytes_left = size;
+            return true;
         }
 
         bool from_file(FILE* file, u32 size) {
