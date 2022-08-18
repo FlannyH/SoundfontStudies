@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <map>
 #include "structs.h"
+#include "riff_tree.h"
 
 namespace Flan {
     struct Soundfont {
@@ -15,6 +16,8 @@ namespace Flan {
         bool from_file(std::string path);
         bool from_sf2(std::string path);
         bool from_dls(std::string path);
+        void dls_get_samples(Flan::RiffTree& riff_tree);
+        bool from_dls_old(std::string path);
         void clear();
     private:
         void handle_dls_instr(const uint32_t& n_instruments, Flan::ChunkDataHandler& dls_file, std::map<u32, Sample>& _samples);

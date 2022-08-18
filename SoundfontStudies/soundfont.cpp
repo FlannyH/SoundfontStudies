@@ -2,8 +2,8 @@
 #include "soundfont.h"
 #include <iostream>
 #include <vector>
-#include <algorithm>
 #include <cassert>
+#include <algorithm>
 
 #define VERBOSE 0
 #define PRINT_AT_ALL 0
@@ -336,6 +336,170 @@ namespace Flan {
 
     bool Soundfont::from_dls(std::string path)
     {
+        // Get a riff tree of the DLS file
+        RiffTree riff_tree;
+        riff_tree.from_file(path);
+
+        // Get samples
+        dls_get_samples(riff_tree);
+        sample_data = (i16*)riff_tree.data;
+
+        // Get presets
+        {
+            // Loop over all instruments in the instrument list
+            for (RiffNode& ins : riff_tree["lins"].subchunks) {
+                // Init preset and global zone
+                Preset preset{};
+                Zone global_zone{};
+
+                // Get instrument header
+                dlsInsh insh;
+                memcpy_s(&insh, sizeof(insh), ins["insh"].data, ins["insh"].size);
+
+                // Get instrument name
+                preset.name = std::string((char*)ins["INFO"]["INAM"].data);
+
+                // Apply global zone if it exists
+                if (ins.exists("lart")) {
+                    ChunkDataHandler data;
+                    data.from_buffer(ins["lart"]["art1"].data, ins["lart"]["art1"].size);
+                    handle_art1(data, global_zone);
+                }
+
+                // Loop over individual zones in the instrument
+                for (RiffNode& rgn : ins["lrgn"].subchunks) {
+                    // Get the zone chunks
+                    dlsRgnh rgnh; memcpy_s(&rgnh, sizeof(rgnh), rgn["rgnh"].data, rgn["rgnh"].size);
+                    dlsWsmp wsmp; memcpy_s(&wsmp, sizeof(wsmp), rgn["wsmp"].data, rgn["wsmp"].size);
+                    dlsWlnk wlnk; memcpy_s(&wlnk, sizeof(wlnk), rgn["wlnk"].data, rgn["wlnk"].size);
+
+                    // Create a zone out of it based on the global zone
+                    Zone zone = global_zone;
+                    zone.key_range_low = rgnh.key_low;
+                    zone.key_range_high = rgnh.key_high;
+                    zone.vel_range_low = rgnh.vel_low;
+                    zone.vel_range_high = rgnh.vel_high;
+                    zone.sample_index = wlnk.smpl_idx;
+                    zone.loop_enable = wsmp.loop_mode;
+
+                    // If the zone has an articulator, apply it
+                    if (rgn.exists("lart")) {
+                        ChunkDataHandler data;
+                        data.from_buffer(rgn["lart"]["art1"].data, rgn["lart"]["art1"].size);
+                        handle_art1(data, zone);
+                    }
+
+                    // Add zone to preset
+                    preset.zones.push_back(zone);
+                }
+
+                // Add the preset to the soundfont
+                insh.bank_id >>= 8;
+                if ((insh.bank_id & 0x800000) > 0)
+                    insh.bank_id += 128 - 0x800000;
+                presets[insh.bank_id << 8 | insh.instr_id] = preset;
+            }
+        }
+
+        return true;
+    }
+
+    void Soundfont::dls_get_samples(Flan::RiffTree& riff_tree)
+    {
+        // Get ptbl chunk
+        Flan::ChunkDataHandler data;
+        data.from_buffer(riff_tree["ptbl"].data, riff_tree["ptbl"].size);
+
+        // Get ptbl header
+        struct {
+            u32 structure_size;
+            u32 n_cues;
+        } ptbl;
+        data.get_data(&ptbl, sizeof(ptbl));
+
+        // Get pool cues - each pool_table_offset points to a wave-list
+        std::vector<u32> pool_table_offsets;
+        pool_table_offsets.resize(ptbl.n_cues);
+        data.get_data(pool_table_offsets.data(), ptbl.n_cues * sizeof(u32));
+
+        // Get wvpl chunk
+        data.from_buffer(riff_tree["wvpl"].data, riff_tree["wvpl"].size);
+
+        // Loop over each entry in the pool table
+        samples.resize(pool_table_offsets.size());
+        for (int i = 0; i < pool_table_offsets.size(); i++) {
+            // Get wave chunk
+            RiffChunk wave;
+            memcpy_s(&wave, sizeof(wave), riff_tree["wvpl"].data + pool_table_offsets[i], sizeof(wave));
+
+            // Create a chunk handler for this for easy access - I'm too paranoid to assume everything is in order after reading the DLS spec
+            ChunkDataHandler wave_handler;
+            wave_handler.from_buffer(riff_tree["wvpl"].data + pool_table_offsets[i] + sizeof(RiffChunk), wave.size - 4);
+
+            // Here's the data we're hoping to collect from the pool cue
+            struct {
+                u16 format_tag = 0;
+                u16 n_channels = 0;
+                u32 sample_rate = 0;
+                u32 byte_rate = 0;
+                u16 block_align = 0;
+                u16 bits_per_sample = 0;
+            } fmt;
+            struct {
+                u32 struct_size = 0;
+                u16 root_key = 0;
+                i16 fine_tune = 0;
+                i32 attenuation = 0;
+                u32 options = 0; //ignored
+                u32 loop_mode = 0;
+            } wsmp;
+            struct {
+                u32 wsloop_size = 0; //should be 16
+                u32 loop_type = 0; // always forward loop
+                u32 loop_start = 0; // absolute offset in data chunk
+                u32 loop_length = 0;
+            } loop_hdr;
+            i16* _sample_data = nullptr;
+            int sample_byte_length = 0;
+
+            // Loop over each chunk
+            Chunk chunk;
+            while (chunk.from_chunk_data_handler(wave_handler)) {
+                if (chunk.id == "fmt ") {
+                    wave_handler.get_data(&fmt, sizeof(fmt));
+                    wave_handler.get_data(nullptr, chunk.size - sizeof(fmt)); // no idea why this is necessary but it is
+                    int x = 6;
+                }
+                else if (chunk.id == "wsmp") {
+                    wave_handler.get_data(&wsmp, sizeof(wsmp));
+                    if (wsmp.loop_mode == 1) {
+                        wave_handler.get_data(&loop_hdr, sizeof(loop_hdr));
+                    }
+                }
+                else if (chunk.id == "data") {
+                    _sample_data = (i16*)wave_handler.data_pointer;
+                    wave_handler.get_data(nullptr, chunk.size);
+                    sample_byte_length = chunk.size;
+                }
+                else {
+                    wave_handler.get_data(nullptr, chunk.size);
+                }
+            }
+
+            // Assemble a sample from this
+            samples[i] = {
+                _sample_data,
+                _sample_data,
+                (float)fmt.sample_rate * exp2f(((60.f - (float)wsmp.root_key) / 12.f) + (wsmp.fine_tune / 1200.f)),
+                sample_byte_length * fmt.sample_rate / fmt.byte_rate,
+                loop_hdr.loop_start,
+                loop_hdr.loop_start + loop_hdr.loop_length,
+            };
+        }
+    }
+
+    bool Soundfont::from_dls_old(std::string path)
+    {
         // Open file
         FILE* in_file;
         fopen_s(&in_file, path.c_str(), "rb"); // Todo: un-hardcode this
@@ -519,11 +683,11 @@ namespace Flan {
                     if (id == "lrgn") {
                         handle_dls_lrgn(dls_file, insh, _samples, preset);
                     }
-                    else if (id == "lart") {
+                    else if (id == "lart" || id == "lar2") {
                         // Get chunk
                         Chunk id;
                         id.from_chunk_data_handler(dls_file);
-                        id.verify("art1");
+                        //id.verify("art1");
 
                         handle_art1(dls_file, global_zone);
                     }
@@ -618,7 +782,7 @@ namespace Flan {
             RiffChunk rgn;
             dls_file.get_data(&rgn, sizeof(rgn));
             rgn.type.verify("LIST");
-            rgn.name.verify("rgn ");
+            //rgn.name.verify("rgn "); //could be both rgn or rgn2
             u8* region_end = dls_file.data_pointer + rgn.size - 4;
 
             // Fill zone with parameters
@@ -693,11 +857,11 @@ namespace Flan {
                     dls_file.get_data(&id, sizeof(id));
 
                     // This should be the only on here
-                    if (id == "lart") {
+                    if (id == "lart" || id == "lar2") {
                         // Get chunk
                         Chunk id;
                         id.from_chunk_data_handler(dls_file);
-                        id.verify("art1");
+                        //id.verify("art1");
 
                         handle_art1(dls_file, zone);
                     }
@@ -707,7 +871,7 @@ namespace Flan {
                     }
 
                 }
-                else if (chunk.id == "art1") {
+                else if (chunk.id == "art1" || chunk.id == "art2") {
                     handle_art1(dls_file, zone);
                 }
                 else {

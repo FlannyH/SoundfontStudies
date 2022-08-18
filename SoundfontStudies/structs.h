@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <fstream>
+#include <iostream>
 
 namespace Flan {
     enum SFSampleLink : u16 {
@@ -198,6 +200,15 @@ namespace Flan {
         static constexpr u32 from_string(const char* v) {
             return *(u32*)v;
         }
+        std::shared_ptr<char> c_str() {
+            std::shared_ptr<char> cstr((char*)malloc(5), free);
+            cstr.get()[0] = id_chr[0];
+            cstr.get()[1] = id_chr[1];
+            cstr.get()[2] = id_chr[2];
+            cstr.get()[3] = id_chr[3];
+            cstr.get()[4] = 0;
+            return cstr;
+        }
         bool verify(const char* other_id) {
             if (*this != other_id) {
                 printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
@@ -215,11 +226,15 @@ namespace Flan {
         u32 chunk_bytes_left = 0;
         u8* original_pointer = nullptr;
         ~ChunkDataHandler() {
-            free(original_pointer);
+            if (original_pointer)
+                free(original_pointer);
         }
         bool from_buffer(u8* buffer_to_use, u32 size) {
             if (buffer_to_use == nullptr)
                 return false;
+            if (size == 0) {
+                return false;
+            }
             data_pointer = buffer_to_use;
             chunk_bytes_left = size;
             return true;
@@ -233,6 +248,28 @@ namespace Flan {
             data_pointer = original_pointer;
             if (data_pointer == 0) { return false; }
             fread_s(data_pointer, size, size, 1, file);
+            chunk_bytes_left = size;
+            return true;
+        }
+
+        bool from_ifstream(std::ifstream& file, u32 size, bool free_on_destruction = true) {
+            if (size == 0) {
+                return false;
+            }
+            data_pointer = (u8*)malloc(size);
+            if (free_on_destruction)
+                original_pointer = data_pointer;
+            if (data_pointer == 0) { return false; }
+            file.read((char*)data_pointer, size);
+            chunk_bytes_left = size;
+            return true;
+        }
+
+        bool from_data_handler(ChunkDataHandler& data, u32 size) {
+            if (size == 0) {
+                return false;
+            }
+            data_pointer = data.data_pointer;
             chunk_bytes_left = size;
             return true;
         }
@@ -605,5 +642,37 @@ namespace Flan {
         CONN_TRN_NONE = 0x0000,
         CONN_TRN_CONCAVE = 0x0001
     };
+
+    // Get region header
+    struct dlsRgnh{
+        u16 key_low;
+        u16 key_high;
+        u16 vel_low;
+        u16 vel_high;
+        u16 options; //ignored
+        u16 key_group; //ignored
+    };
+
+    struct dlsWsmp {
+        u32 struct_size;
+        u16 root_key;
+        i16 fine_tune;
+        i32 attenuation;
+        u32 options; //ignored
+        u32 loop_mode;
+        // loop parts, some wsmp chunks dont have it
+        u32 wsloop_size = 0; //should be 16
+        u32 loop_type = 0; // always forward loop
+        u32 loop_start = 0; // absolute offset in data chunk
+        u32 loop_length = 0;
+    };
+
+    struct dlsWlnk{
+        u16 options; //ignore
+        u16 phase_group; //ignore
+        u32 channel; //level 1 dls doesnt support stereo, ignore
+        u32 smpl_idx;
+    };
+
 }
 #pragma pack(pop)

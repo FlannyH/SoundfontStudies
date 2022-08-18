@@ -18,6 +18,9 @@
     <ClCompile Include="soundfont.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="riff_tree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="structs.h">
@@ -27,6 +30,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="soundfont.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="riff_tree.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
