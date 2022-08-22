@@ -2,9 +2,10 @@
 #include "common.h"
 #include <string>
 #include <vector>
-#include <algorithm>
 #include <fstream>
 #include <iostream>
+
+#include "envs_lfos.h"
 
 namespace Flan {
     enum SFSampleLink : u16 {
@@ -26,125 +27,6 @@ namespace Flan {
         u32 loop_start;                   // In samples
         u32 loop_end;                     // In samples
         Flan::SFSampleLink type;          // Sample link type
-    };
-
-    struct EnvParams {
-        float delay = 1000.0f;             // Delay in 1.0 / seconds
-        float attack = 1000.0f;	          // Attack in 1.0 / seconds
-        float hold = 1000.0f;		      // Hold in 1.0 / seconds
-        float decay = 0.0f;		      // Decay in dB per second
-        float sustain = 0.0f;		      // Sustain volume in dB (where a value of -6 dB means 0.5x volume, and -12 dB means 0.25x volume)
-        float release = 1000.0f;		      // Release in dB per second
-    };
-
-    enum EnvStage : u8
-    {
-        Delay = 0,// Hold volume at 0.0
-        Attack,   // Slowly rise from 0.0 to 1.0
-        Hold,     // Hold at 1.0
-        Decay,    // Decay from 1.0 to Sustain
-        Sustain,  // Hold at Sustain until note_off
-        Release,  // Decay from Sustain to 0.0
-        Off,      // Oscillator is not playing, meaning the oscillator is free
-    };
-
-    struct EnvState {
-        float stage = (float)Delay;    // Current stage in ADSR. If floored to an integer and casted to ADSRstage, you get the actual ADSRstage as an enum
-        float value = 0.0f;    // Current envelope volume value in dB
-        void Update(EnvParams& env_params, float dt, bool correct_attack_phase) {
-            // Get ADSR stage as enum
-            EnvStage stage_enum = (EnvStage)((u8)stage);
-
-            // Update volume envelope - the idea is that the adsr_timer goes from 1.0 - 0.0 for every state
-            switch (stage_enum) {
-            case Delay:
-                stage = std::min((float)Attack, stage + env_params.delay * dt);
-                value = -100.0f;
-                break;
-            case Attack:
-                stage = std::min((float)Hold, stage + env_params.attack * dt);
-                if (correct_attack_phase)
-                    value = 6 * log2f(stage - (float)Attack);
-                else
-                    value = -100.0f + 100 * (stage - (float)Attack);
-                break;
-            case Hold:
-                stage = std::min((float)Decay, stage + env_params.hold * dt);
-                value = 0.0f;
-                break;
-            case Decay:
-                value -= env_params.decay * dt;
-                if (value < env_params.sustain) {
-                    value = env_params.sustain;
-                    stage = (float)(Sustain);
-                }
-                break;
-            case Sustain:
-                // This stage will stay until note_off
-                stage = (float)(Sustain);
-                value = env_params.sustain;
-                break;
-            case Release:
-                // This stage will continue until the volume is 0.0f
-                stage = (float)(Release);
-                value -= env_params.release * dt;
-                if (value <= -100.0f) {
-                    value = -100.0f;
-                    stage = (float)Off;
-                }
-                break;
-            }
-        }
-    };
-
-    struct LfoParams {
-        float freq = 8.2f; // Frequency in Hz
-        float delay = 0.0f; // Delay in seconds
-    };
-
-    struct LfoState {
-        float time = 0.0;
-        float state = 0.0f;
-        void Update(LfoParams& lfo_params, float dt) {
-            // Step time
-            time += dt;
-
-            // Handle delay
-            if (time < lfo_params.delay) {
-                state = 0.0f;
-            }
-            else {
-                state = sinf((time - lfo_params.delay) * lfo_params.freq * 2.0f * 3.14159265359f);
-            }
-        }
-    };
-
-    struct LowPassFilter {
-        float cutoff = 20005.f;
-        float resonance = 0.0f;
-        float state1[2] = { 0.0f, 0.0f };
-        float state2[2] = { 0.0f, 0.0f };
-        void Update(float dt, float& input_l, float& input_r) {
-            const float feedback = (resonance + resonance / (1.0f - cutoff));
-            const float TWO_PI_FC = 2.0f * 3.141592653589f * cutoff * dt;
-            float a = TWO_PI_FC / (TWO_PI_FC + 1);
-
-            // Left channel
-            state1[0] += a * (input_l - state1[0] + feedback * (state1[0] - state2[0]));
-            state2[0] += a * (state1[0] - state2[0]);
-            input_l = state2[0];
-
-            // Right channel
-            state1[1] += a * (input_r - state1[1] + feedback * (state1[1] - state2[1]));
-            state2[1] += a * (state1[1] - state2[1]);
-            input_r = state2[1];
-
-
-            state1[0] = std::clamp(state1[0], -50.0f, +50.0f);
-            state1[1] = std::clamp(state1[1], -50.0f, +50.0f);
-            state2[0] = std::clamp(state2[0], -50.0f, +50.0f);
-            state2[1] = std::clamp(state2[1], -50.0f, +50.0f);
-        }
     };
 
     struct Zone {
@@ -192,16 +74,19 @@ namespace Flan {
         std::vector<Zone> zones;
     };
 
-    struct ChunkID {
+    struct ChunkId {
         union {
             u32 id = 0;
             char id_chr[4];
         };
-        static constexpr u32 from_string(const char* v) {
-            return *(u32*)v;
+        static u32 from_string(const char* v)
+        {
+            return *reinterpret_cast<const uint32_t*>(v);
         }
-        std::shared_ptr<char> c_str() {
-            std::shared_ptr<char> cstr((char*)malloc(5), free);
+
+        [[nodiscard]] std::shared_ptr<char> c_str() const
+        {
+            std::shared_ptr<char> cstr(static_cast<char*>(malloc(5)), free);
             cstr.get()[0] = id_chr[0];
             cstr.get()[1] = id_chr[1];
             cstr.get()[2] = id_chr[2];
@@ -209,16 +94,17 @@ namespace Flan {
             cstr.get()[4] = 0;
             return cstr;
         }
-        bool verify(const char* other_id) {
+        bool verify(const char* other_id) const
+        {
             if (*this != other_id) {
                 printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
             }
             return *this == other_id;
         }
-        bool operator==(const ChunkID& rhs) { return id == rhs.id; }
-        bool operator!=(const ChunkID& rhs) { return id == rhs.id; }
-        bool operator==(const char* rhs) { return *(u32*)rhs == id; }
-        bool operator!=(const char* rhs) { return *(u32*)rhs != id; }
+        bool operator==(const ChunkId& rhs) const { return id == rhs.id; }
+        bool operator!=(const ChunkId& rhs) const { return id == rhs.id; }
+        bool operator==(const char* rhs) const { return *reinterpret_cast<const uint32_t*>(rhs) == id; }
+        bool operator!=(const char* rhs) const { return *reinterpret_cast<const uint32_t*>(rhs) != id; }
     };
 
     struct ChunkDataHandler {
@@ -244,9 +130,9 @@ namespace Flan {
             if (size == 0) {
                 return false;
             }
-            original_pointer = (u8*)malloc(size);
+            original_pointer = static_cast<uint8_t*>(malloc(size));
             data_pointer = original_pointer;
-            if (data_pointer == 0) { return false; }
+            if (!data_pointer) { return false; }
             fread_s(data_pointer, size, size, 1, file);
             chunk_bytes_left = size;
             return true;
@@ -256,16 +142,16 @@ namespace Flan {
             if (size == 0) {
                 return false;
             }
-            data_pointer = (u8*)malloc(size);
+            data_pointer = static_cast<uint8_t*>(malloc(size));
             if (free_on_destruction)
                 original_pointer = data_pointer;
-            if (data_pointer == 0) { return false; }
-            file.read((char*)data_pointer, size);
+            if (!data_pointer) { return false; }
+            file.read(reinterpret_cast<char*>(data_pointer), size);
             chunk_bytes_left = size;
             return true;
         }
 
-        bool from_data_handler(ChunkDataHandler& data, u32 size) {
+        bool from_data_handler(const ChunkDataHandler& data, const u32 size) {
             if (size == 0) {
                 return false;
             }
@@ -274,7 +160,7 @@ namespace Flan {
             return true;
         }
 
-        bool get_data(void* destination, u32 byte_count) {
+        bool get_data(void* destination, const u32 byte_count) {
             if (chunk_bytes_left >= byte_count) {
                 if (destination != nullptr) { // Sending a nullptr is valid, it just discards byte_count number of bytes
                     memcpy(destination, data_pointer, byte_count);
@@ -288,7 +174,7 @@ namespace Flan {
     };
 
     struct Chunk {
-        ChunkID id;
+        ChunkId id;
         u32 size = 0;
         bool from_file(FILE*& file) {
             return fread_s(this, sizeof(*this), sizeof(*this), 1, file) > 0;
@@ -298,17 +184,18 @@ namespace Flan {
             return chunk_data_handler.get_data(this, sizeof(*this));
         }
 
-        bool verify(const char* other_id) {
+        bool verify(const char* other_id) const
+        {
             return id.verify(other_id);
         }
     };
 #pragma pack(push, 1)
-    struct sfVersionTag {
+    struct SfVersionTag {
         u16 major;
         u16 minor;
     };
 
-    struct sfPresetHeader {
+    struct SfPresetHeader {
         char preset_name[20]; // Preset name
         u16 program; // MIDI program number
         u16 bank; // MIDI bank number
@@ -318,12 +205,12 @@ namespace Flan {
         u32 morphology;
     };
 
-    struct sfBag {
+    struct SfBag {
         u16 generator_index;
         u16 modulator_index;
     };
 
-    struct SFModulator {
+    struct SfModulator {
         u16 index : 7;
         u16 cc_flag : 1;
         u16 direction : 1;
@@ -548,10 +435,10 @@ namespace Flan {
     };
 
     struct sfModList {
-        SFModulator src_oper;
+        SfModulator src_oper;
         SFGenerator dest_oper;
         i16 amount;
-        SFModulator amount_src_oper;
+        SfModulator amount_src_oper;
         SFTransform trans_oper;
     };
 
@@ -578,27 +465,27 @@ namespace Flan {
     };
 
     struct RawSoundfontData {
-        sfPresetHeader* preset_headers = nullptr;   int n_preset_headers = 0;
-        sfBag* preset_bags = nullptr;               int n_preset_bags = 0;
-        sfModList* preset_mods = nullptr;           int n_preset_mods = 0;
-        sfGenList* preset_gens = nullptr;           int n_preset_gens = 0;
-        sfInst* instruments = nullptr;              int n_instruments = 0;
-        sfBag* instr_bags = nullptr;                int n_instr_bags = 0;
-        sfModList* instr_mods = nullptr;            int n_instr_mods = 0;
-        sfGenList* instr_gens = nullptr;            int n_instr_gens = 0;
-        sfSample* sample_headers = nullptr;         int n_samples = 0;
+        SfPresetHeader* preset_headers = nullptr;   unsigned int n_preset_headers = 0;
+        SfBag* preset_bags = nullptr;               unsigned int n_preset_bags = 0;
+        sfModList* preset_mods = nullptr;           unsigned int n_preset_mods = 0;
+        sfGenList* preset_gens = nullptr;           unsigned int n_preset_gens = 0;
+        sfInst* instruments = nullptr;              unsigned int n_instruments = 0;
+        SfBag* instr_bags = nullptr;                unsigned int n_instr_bags = 0;
+        sfModList* instr_mods = nullptr;            unsigned int n_instr_mods = 0;
+        sfGenList* instr_gens = nullptr;            unsigned int n_instr_gens = 0;
+        sfSample* sample_headers = nullptr;         unsigned int n_samples = 0;
     };
 
     struct RiffChunk {
-        ChunkID type;
-        u32 size;
-        ChunkID name;
+        ChunkId type{};
+        u32 size = 0;
+        ChunkId name{};
         void from_file(FILE* file) {
             fread_s(this, sizeof(*this), sizeof(*this), 1, file);
         }
     };
 
-    struct dlsInsh {
+    struct DlsInsh {
         u32 region_count;
         u32 bank_id;
         u32 instr_id;
@@ -681,14 +568,14 @@ namespace Flan {
     };
 
     struct dlsWsmp {
-        u32 struct_size;
+        u32 struct_size = 0;
         u16 root_key = 60;
         i16 fine_tune = 0;
         i32 attenuation = 0;
-        u32 options; //ignored
+        u32 options = 0; //ignored
         u32 loop_mode = 0;
         // loop parts, some wsmp chunks dont have it
-        u32 wsloop_size = 0; //should be 16
+        u32 wsloop_size = 0; //should be 16 if there's a loop chunk
         u32 loop_type = 0; // always forward loop
         u32 loop_start = 0; // absolute offset in data chunk
         u32 loop_length = 0;

@@ -1,16 +1,15 @@
 #pragma once
 #include <string>
 #include "structs.h"
-#include <corecrt_io.h>
 #include <fcntl.h>
 
 namespace Flan {
     struct RiffNode {
-        ChunkID id;
+        ChunkId id;
         u32 size = 0;
         u8* data = nullptr;
         std::vector<RiffNode> subchunks;
-        RiffNode& operator[](std::string name) {
+        RiffNode& operator[](const std::string& name) {
             // Search through the subchunks to find any with a matching name, and if it doesn't exist, throw an exception
             for (RiffNode& node : subchunks) {
                 if (node.id == name.c_str()) {
@@ -19,13 +18,13 @@ namespace Flan {
             }
             throw std::invalid_argument("Attempted to access a subnode that does not exist!");
         }
-        RiffNode& operator[](size_t index) {
+        RiffNode& operator[](const size_t index) {
             // Search through the subchunks to find any with a matching name, and if it doesn't exist, throw an exception
             if (index >= subchunks.size())
                 throw std::invalid_argument("Attempted to access a subnode that does not exist!");
             return subchunks[index];
         }
-        bool exists(const std::string name) {
+        bool exists(const std::string& name) {
             // Search through the subchunks to find any with a matching name
             for (RiffNode& node : subchunks) {
                 if (node.id == name.c_str()) {
@@ -34,15 +33,16 @@ namespace Flan {
             }
             return false;
         }
-        void visualize_tree(std::vector<bool>& draw_line, int depth = 0) {
+        void visualize_tree(std::vector<bool>& draw_line, const int depth = 0) {
             // Set console code page to UTF-8 so console known how to interpret string data
             //SetConsoleOutputCP(CP_UTF8);
 
             // Enable buffering to prevent VS from chopping up UTF-8 byte sequences
-            setvbuf(stdout, nullptr, _IOFBF, 1000);
+            const int result = setvbuf(stdout, nullptr, _IOFBF, 1000);
+            (void)result;
 
             // For each subchunk
-            for (int i = 0; i < subchunks.size(); i++) {
+            for (size_t i = 0; i < subchunks.size(); i++) {
 
                 bool is_last = false;
                 // Print indentation
@@ -74,29 +74,29 @@ namespace Flan {
 
             
         }
-        void get_subchunks(ChunkDataHandler& data) {
+        void get_subchunks(ChunkDataHandler& data_handler) {
             // Loop over all the subchunks and sublists
             Chunk chunk;
-            while (chunk.from_chunk_data_handler(data)) {
+            while (chunk.from_chunk_data_handler(data_handler)) {
                 // For lists
                 if (chunk.id == "LIST") {
                     // Get the list name
-                    ChunkID list_name;
-                    data.get_data(&list_name, sizeof(ChunkID));
+                    ChunkId list_name;
+                    data_handler.get_data(&list_name, sizeof(ChunkId));
 
                     // Create a chunk data handler for this list
                     ChunkDataHandler subchunk_data;
-                    subchunk_data.from_data_handler(data, chunk.size - 4);
+                    subchunk_data.from_data_handler(data_handler, chunk.size - 4);
 
                     // Create a new list node, and recursively get its subchunks
                     RiffNode new_node;
                     new_node.id = list_name;
                     new_node.size = chunk.size - 4;
-                    new_node.data = data.data_pointer;
+                    new_node.data = data_handler.data_pointer;
                     new_node.get_subchunks(subchunk_data);
 
                     // Advance the current nodes' data pointer
-                    data.get_data(nullptr, chunk.size - 4);
+                    data_handler.get_data(nullptr, chunk.size - 4);
 
                     // Add that list node to the current node
                     subchunks.push_back(new_node);
@@ -107,14 +107,14 @@ namespace Flan {
                     RiffNode new_node;
                     new_node.id = chunk.id;
                     new_node.size = chunk.size;
-                    new_node.data = data.data_pointer;
-                    data.get_data(nullptr, chunk.size);
+                    new_node.data = data_handler.data_pointer;
+                    data_handler.get_data(nullptr, chunk.size);
                     subchunks.push_back(new_node);
                 }
 
                 // Enforce 16-bit alignment requirement
                 if (chunk.size % 2 == 1) {
-                    data.get_data(nullptr, 1);
+                    data_handler.get_data(nullptr, 1);
                 }
             }
         }
@@ -124,21 +124,22 @@ namespace Flan {
     public:
         RiffNode riff_chunk;
         u8* data = nullptr;
-        bool from_file(std::string path) {
+        bool from_file(const std::string& path) {
             // Open file
             std::ifstream input(path.c_str(), std::ios::in | std::ios::binary);
             if (!input.good()) return false;
 
             // Load RIFF header
             RiffChunk riff_header;
-            input.read((char*)&riff_header, sizeof(riff_header));
+            input.read(reinterpret_cast<char*>(&riff_header), sizeof(riff_header));
 
             // Verify if this is in fact a RIFF header
             if (riff_header.type != "RIFF") return false;
 
             // If all is good, read the entire file into a chunk handler
             ChunkDataHandler riff_data;
-            riff_data.from_ifstream(input, riff_header.size, false);
+            const bool result = riff_data.from_ifstream(input, riff_header.size, false);
+            if (!result) return false;
             data = riff_data.data_pointer;
 
             // Create a RIFF node
@@ -147,6 +148,7 @@ namespace Flan {
 
             // Get subchunks
             riff_chunk.get_subchunks(riff_data);
+            return true;
         }
         void visualize_tree()
         {
@@ -155,7 +157,7 @@ namespace Flan {
             draw_line.push_back(true);
             riff_chunk.visualize_tree(draw_line, 1);
         }
-        RiffNode& operator[](const std::string c) {
+        RiffNode& operator[](const std::string& c) {
             return riff_chunk[c];
         }
     };

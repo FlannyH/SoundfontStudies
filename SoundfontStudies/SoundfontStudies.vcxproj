@@ -227,11 +227,13 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="envs_lfos.cpp" />
     <ClCompile Include="riff_tree.cpp" />
     <ClCompile Include="soundfont.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />
+    <ClInclude Include="envs_lfos.h" />
     <ClInclude Include="riff_tree.h" />
     <ClInclude Include="soundfont.h" />
     <ClInclude Include="structs.h" />
