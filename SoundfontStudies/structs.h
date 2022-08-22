@@ -604,8 +604,7 @@ namespace Flan {
         u32 instr_id;
     };
 
-    enum dlsArticulatorDefines : u16 {
-        // Generic Sources,
+    enum dlsArtSrc : u16 {
         CONN_SRC_NONE = 0x0000,
         CONN_SRC_LFO = 0x0001,
         CONN_SRC_KEYONVELOCITY = 0x0002,
@@ -613,34 +612,61 @@ namespace Flan {
         CONN_SRC_EG1 = 0x0004,
         CONN_SRC_EG2 = 0x0005,
         CONN_SRC_PITCHWHEEL = 0x0006,
-        // Midi Controllers 0-127,
+        CONN_SRC_POLYPRESSURE = 0x0007,
+        CONN_SRC_CHANNELPRESSURE = 0x0008,
+        CONN_SRC_VIBRATO = 0x0009,
+        CONN_SRC_MONOPRESSURE = 0x000A,
         CONN_SRC_CC1 = 0x0081,
         CONN_SRC_CC7 = 0x0087,
-        CONN_SRC_CC10 = 0x008a,
-        CONN_SRC_CC11 = 0x008b,
-        // Generic Destinations,
+        CONN_SRC_CC10 = 0x008A,
+        CONN_SRC_CC11 = 0x008B,
+        CONN_SRC_CC91 = 0x00DB,
+        CONN_SRC_CC93 = 0x00DD,
+        CONN_SRC_RPN0 = 0x0100,
+        CONN_SRC_RPN1 = 0x0101,
+        CONN_SRC_RPN2 = 0x0102,
+    };
+
+    enum dlsArtDst : u16 {
         CONN_DST_NONE = 0x0000,
-        CONN_DST_ATTENUATION = 0x0001,
-        CONN_DST_RESERVED = 0x0002,
+        CONN_DST_GAIN = 0x0001,
         CONN_DST_PITCH = 0x0003,
         CONN_DST_PAN = 0x0004,
-        // LFO Destinations,
+        CONN_DST_KEYNUMBER = 0x0005,
+        CONN_DST_LEFT = 0x0010,
+        CONN_DST_RIGHT = 0x0011,
+        CONN_DST_CENTER = 0x0012,
+        CONN_DST_LEFTREAR = 0x0013,
+        CONN_DST_RIGHTREAR = 0x0014,
+        CONN_DST_LFE_CHANNEL = 0x0015,
+        CONN_DST_CHORUS = 0x0080,
+        CONN_DST_REVERB = 0x0081,
         CONN_DST_LFO_FREQUENCY = 0x0104,
         CONN_DST_LFO_STARTDELAY = 0x0105,
-        // EG1 Destinations,
+        CONN_DST_VIB_FREQUENCY = 0x0114,
+        CONN_DST_VIB_STARTDELAY = 0x0115,
         CONN_DST_EG1_ATTACKTIME = 0x0206,
         CONN_DST_EG1_DECAYTIME = 0x0207,
-        CONN_DST_EG1_RESERVED = 0x0208,
         CONN_DST_EG1_RELEASETIME = 0x0209,
-        CONN_DST_EG1_SUSTAINLEVEL = 0x020a,
-        // EG2 Destinations,
-        CONN_DST_EG2_ATTACKTIME = 0x030a,
-        CONN_DST_EG2_DECAYTIME = 0x030b,
-        CONN_DST_EG2_RESERVED = 0x030c,
-        CONN_DST_EG2_RELEASETIME = 0x030d,
-        CONN_DST_EG2_SUSTAINLEVEL = 0x030e,
+        CONN_DST_EG1_SUSTAINLEVEL = 0x020A,
+        CONN_DST_EG1_DELAYTIME = 0x020B,
+        CONN_DST_EG1_HOLDTIME = 0x020C,
+        CONN_DST_EG1_SHUTDOWNTIME = 0x020D,
+        CONN_DST_EG2_ATTACKTIME = 0x030A,
+        CONN_DST_EG2_DECAYTIME = 0x030B,
+        CONN_DST_EG2_RELEASETIME = 0x030D,
+        CONN_DST_EG2_SUSTAINLEVEL = 0x030E,
+        CONN_DST_EG2_DELAYTIME = 0x030F,
+        CONN_DST_EG2_HOLDTIME = 0x0310,
+        CONN_DST_FILTER_CUTOFF = 0x0500,
+        CONN_DST_FILTER_Q = 0x0501,
+    };
+
+    enum dlsArtTrn : u16 {
         CONN_TRN_NONE = 0x0000,
-        CONN_TRN_CONCAVE = 0x0001
+        CONN_TRN_CONCAVE = 0x0001,
+        CONN_TRN_CONVEX = 0x0002,
+        CONN_TRN_SWITCH = 0x0003,
     };
 
     // Get region header
@@ -651,15 +677,16 @@ namespace Flan {
         u16 vel_high;
         u16 options; //ignored
         u16 key_group; //ignored
+        u16 unknown;
     };
 
     struct dlsWsmp {
         u32 struct_size;
-        u16 root_key;
-        i16 fine_tune;
-        i32 attenuation;
+        u16 root_key = 60;
+        i16 fine_tune = 0;
+        i32 attenuation = 0;
         u32 options; //ignored
-        u32 loop_mode;
+        u32 loop_mode = 0;
         // loop parts, some wsmp chunks dont have it
         u32 wsloop_size = 0; //should be 16
         u32 loop_type = 0; // always forward loop

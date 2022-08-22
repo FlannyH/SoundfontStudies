@@ -48,16 +48,16 @@ namespace Flan {
                 // Print indentation
                 for (int x = 1; x < depth; x++) {
                     if (draw_line[x+1])
-                        printf("┃      ");
+                        printf("|      ");
                     else
                         printf("       ");
                 }
                 // Print fancy tree characters
                 if (depth > 0 && i < subchunks.size() - 1) {
-                    printf("┣━━━━━ ");
+                    printf("|----- ");
                 }
                 else if (depth > 0) {
-                    printf("┗━━━━━ ");
+                    printf("------ ");
                     is_last = true;
                 }
                 draw_line.push_back(!is_last);

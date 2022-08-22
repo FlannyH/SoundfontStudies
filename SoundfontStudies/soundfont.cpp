@@ -365,6 +365,11 @@ namespace Flan {
                     data.from_buffer(ins["lart"]["art1"].data, ins["lart"]["art1"].size);
                     handle_art1(data, global_zone);
                 }
+                if (ins.exists("lar2")) {
+                    ChunkDataHandler data;
+                    data.from_buffer(ins["lar2"]["art2"].data, ins["lar2"]["art2"].size);
+                    handle_art1(data, global_zone);
+                }
 
                 // Loop over individual zones in the instrument
                 for (RiffNode& rgn : ins["lrgn"].subchunks) {
@@ -388,6 +393,19 @@ namespace Flan {
                         data.from_buffer(rgn["lart"]["art1"].data, rgn["lart"]["art1"].size);
                         handle_art1(data, zone);
                     }
+                    if (rgn.exists("lar2")) {
+                        ChunkDataHandler data;
+                        data.from_buffer(rgn["lar2"]["art2"].data, rgn["lar2"]["art2"].size);
+                        handle_art1(data, zone);
+                    }
+
+                    // Apply wsmp chunk
+                    dlsWsmp sample_wsmp{};
+                    if (riff_tree["wvpl"][wlnk.smpl_idx].exists("wsmp"))
+                        memcpy_s(&sample_wsmp, sizeof(dlsWsmp), riff_tree["wvpl"][wlnk.smpl_idx]["wsmp"].data, riff_tree["wvpl"][wlnk.smpl_idx]["wsmp"].size);
+                    zone.root_key_offset = (int)sample_wsmp.root_key - (int)wsmp.root_key;
+                    zone.sample_loop_start_offset = wsmp.loop_start - samples[wlnk.smpl_idx].loop_start;
+                    zone.sample_loop_end_offset = (wsmp.loop_start + wsmp.loop_length) - samples[wlnk.smpl_idx].loop_end;
 
                     // Add zone to preset
                     preset.zones.push_back(zone);
@@ -447,7 +465,7 @@ namespace Flan {
             } fmt;
             struct {
                 u32 struct_size = 0;
-                u16 root_key = 0;
+                u16 root_key = 60;
                 i16 fine_tune = 0;
                 i32 attenuation = 0;
                 u32 options = 0; //ignored
@@ -894,10 +912,10 @@ namespace Flan {
         // Loop over all the connection blocks
         for (int cb_idx = 0; cb_idx < n_connection_blocks; cb_idx++) {
             struct {
-                dlsArticulatorDefines source;
-                dlsArticulatorDefines control;
-                dlsArticulatorDefines destination;
-                dlsArticulatorDefines transform;
+                dlsArtSrc source;
+                dlsArtSrc control;
+                dlsArtDst destination;
+                dlsArtTrn transform;
                 i32 scale;
             } block;
             dls_file.get_data(&block, sizeof(block));
@@ -909,7 +927,7 @@ namespace Flan {
             else if (block.source == CONN_SRC_NONE  && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_LFO_STARTDELAY) { // LFO start delay
                 zone.mod_lfo.delay = tc32_to_seconds(block.scale);
             }
-            else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_ATTENUATION) { // LFO attenuation scale
+            else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_GAIN) { // LFO attenuation scale
                 zone.mod_lfo_to_volume = fixed32_to_float(block.scale) / 10.f;
             }
             else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_PITCH) { // LFO pitch scale
@@ -922,8 +940,14 @@ namespace Flan {
                 zone.mod_lfo_to_volume = fixed32_to_float(block.scale);
             }*/ // not sure what to do with these
             // Envelope 1 (volume)
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DELAYTIME) { // Vol delay
+                zone.vol_env.delay = 1.0f / tc32_to_seconds(block.scale);
+            }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_ATTACKTIME) { // Vol attack
                 zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_HOLDTIME) { // Vol hold
+                zone.vol_env.hold = 1.0f / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
                 zone.vol_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
@@ -941,23 +965,38 @@ namespace Flan {
                 zone.key_to_vol_env_decay = -(float)block.scale / 65536.f / 128.f; // (65536 for fixed16.16, 128 for number of keys); 
             }
             // Envelope 2 (modulator)
-            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Vol attack
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_DELAYTIME) { // Mod delay
+                zone.mod_env.delay = 1.0f / tc32_to_seconds(block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Mod attack
                 zone.mod_env.attack = 1.0f / tc32_to_seconds(block.scale);
             }
-            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_DECAYTIME) { // Vol decay
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_HOLDTIME) { // Mod Hold
+                zone.mod_env.hold = 1.0f / tc32_to_seconds(block.scale);
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_DECAYTIME) { // Mod decay
                 zone.mod_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
             }
-            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_SUSTAINLEVEL) { // Vol sustain
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_SUSTAINLEVEL) { // Mod sustain
                 zone.mod_env.sustain = std::max(-100.f, 6.f * log2f(fixed32_to_float(block.scale) / 1000.f));
             }
-            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_RELEASETIME) { // Vol release
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_RELEASETIME) { // Mod release
                 zone.mod_env.release = 96.0f / tc32_to_seconds(block.scale);
             }
-            /*else if (block.source == CONN_SRC_KEYONVELOCITY && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Vol attack
+            /*else if (block.source == CONN_SRC_KEYONVELOCITY && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Mod attack
                 zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
             }*/ // no equivalent in sf2 i think
-            else if (block.source == CONN_SRC_EG2 && block.control == CONN_SRC_NONE && block.destination == CONN_DST_PITCH) { // Vol decay
+            else if (block.source == CONN_SRC_EG2 && block.control == CONN_SRC_NONE && block.destination == CONN_DST_PITCH) { // Mod decay
                 zone.mod_env_to_pitch = tc32_to_cents(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
+            }
+            else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_PAN) { // Panning
+                zone.pan = fixed32_to_float(block.scale) / 1000.f;
+                if (block.scale != 0) {
+                    printf("yeet");
+                }
+            }
+            else {
+                printf("unknown articulator found!\n");
             }
 
             int x = 0;
