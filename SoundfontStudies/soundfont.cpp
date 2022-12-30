@@ -679,7 +679,7 @@ namespace Flan {
             }
 
             // Does the instrument ID exist?
-            if (preset_zone_generator_values.find("instrument") == preset_zone_generator_values.end()) {
+            if (!preset_zone_generator_values.contains("instrument")) {
                 // If not, this is the global preset zone, save it and go to next preset zone
                 preset_global_generator_values = preset_zone_generator_values;
                 continue;
@@ -708,7 +708,7 @@ namespace Flan {
                 }
 
                 // Does the instrument ID exist?
-                if (instrument_zone_generator_values.find("sampleID") == instrument_zone_generator_values.end()) {
+                if (!instrument_zone_generator_values.contains("sampleID")) {
                     // If not, this is the global preset zone, save it and go to next preset zone
                     instrument_global_generator_values = instrument_zone_generator_values;
                     continue;
@@ -730,7 +730,7 @@ namespace Flan {
 
                 // Apply global preset zone to current preset zone
                 for (auto& entry : preset_global_generator_values) {
-                    if (preset_zone_generator_values.find(entry.first) == preset_zone_generator_values.end()) {
+                    if (!preset_zone_generator_values.contains(entry.first)) {
                         preset_zone_generator_values[entry.first] = entry.second;
                     }
                 }
