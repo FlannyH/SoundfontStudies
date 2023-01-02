@@ -840,6 +840,7 @@ namespace Flan {
     void Soundfont::clear() {
         // Delete sample data
         free(_sample_data);
+        _sample_data = nullptr;
         samples.clear();
         presets.clear();
     };
