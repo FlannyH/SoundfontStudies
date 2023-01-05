@@ -11,13 +11,13 @@
 
 namespace Flan {
     template<class... Args>
-    void print(const char* fmt, Args... args) {
+    void print([[maybe_unused]] const char* fmt, [[maybe_unused]] Args... args) {
 #if PRINT_AT_ALL
         printf(fmt, args...);
 #endif
     }
     template<class... Args>
-    void print_verbose(const char* fmt, Args... args) {
+    void print_verbose([[maybe_unused]] const char* fmt, [[maybe_unused]] Args... args) {
 #if VERBOSE
         print(fmt, args...);
 #endif
@@ -320,7 +320,10 @@ namespace Flan {
             new_sample.loop_start = raw_sf.sample_headers[index].loop_start_index - start;
             new_sample.loop_end = raw_sf.sample_headers[index].loop_end_index - start;
             new_sample.type = raw_sf.sample_headers[index].type;
-            new_sample.linked = (i16*)&_sample_data[raw_sf.sample_headers[raw_sf.sample_headers[index].sample_link].start_index];
+            if (new_sample.type != monoSample)
+                new_sample.linked = (i16*)&_sample_data[raw_sf.sample_headers[raw_sf.sample_headers[index].sample_link].start_index];
+            else
+                new_sample.linked = nullptr;
             print_verbose("\t%s:\n", raw_sf.sample_headers[index].name);
             print_verbose("\tSample rate (before correction): %i\n", raw_sf.sample_headers[index].sample_rate);
             print_verbose("\tSample rate (after correction): %f\n", new_sample.base_sample_rate);
@@ -444,8 +447,10 @@ namespace Flan {
 
                 // Add the preset to the soundfont
                 insh.bank_id >>= 8;
-                if ((insh.bank_id & 0x800000) > 0)
-                    insh.bank_id += 128 - 0x800000;
+                if ((insh.bank_id & 0x800000) > 0) {
+                    insh.bank_id += 128;
+                    insh.bank_id -= 0x800000;
+                }
                 presets[static_cast<uint16_t>(insh.bank_id << 8 | insh.instr_id)] = preset;
             }
         }

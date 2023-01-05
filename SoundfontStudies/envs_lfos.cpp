@@ -65,6 +65,7 @@ namespace Flan {
 
     void LowPassFilter::update(double dt, float& input_l, float& input_r)
     {
+        resonance = std::clamp(resonance, 0.0f, 2.0f);
         const float feedback = (resonance + resonance / (1.0f - cutoff));
         const float two_pi_fc = 2.0f * 3.141592653589f * cutoff * static_cast<float>(dt);
         const float a = two_pi_fc / (two_pi_fc + 1);
