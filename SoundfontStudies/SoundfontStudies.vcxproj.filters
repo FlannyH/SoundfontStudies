@@ -24,6 +24,9 @@
     <ClCompile Include="envs_lfos.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="structs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="structs.h">

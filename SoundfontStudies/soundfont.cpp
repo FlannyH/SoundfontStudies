@@ -23,22 +23,22 @@ namespace Flan {
 #endif
     }
 
-    float freq32_to_hz(const i32 scale)
+    double freq32_to_hz(const i32 scale)
     {
-        return powf(2.f, (((static_cast<float>(scale) / 65536.f) - 6900.f) / 1200.f) * 440.f);
+        return pow(2.0, (((static_cast<double>(scale) / 65536.0) - 6900.0) / 1200.0) * 440.0);
     }
 
-    float tc32_to_seconds(const i32 scale)
+    double tc32_to_seconds(const i32 scale)
     {
-        return powf(2.f, static_cast<float>(scale) / (1200.f * 65536.f));
+        return pow(2.0, static_cast<double>(scale) / (1200.0 * 65536.0));
     }
-    float tc32_to_cents(const i32 scale)
+    double tc32_to_cents(const i32 scale)
     {
-        return powf(2.f, static_cast<float>(scale) / (1200.f * 65536.f));
+        return pow(2.0, static_cast<double>(scale) / (1200.0 * 65536.0));
     }
 
-    float fixed32_to_float(const i32 scale) {
-        return static_cast<float>(scale) / static_cast<float>(0x10000);
+    double fixed32_to_float(const i32 scale) {
+        return static_cast<double>(scale) / static_cast<double>(0x10000);
     }
 
     static void init_default_zone(std::map<std::string, GenAmountType>& preset_zone_generator_values) {
@@ -579,7 +579,7 @@ namespace Flan {
                 zone.mod_lfo.delay = tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_GAIN) { // LFO attenuation scale
-                zone.mod_lfo_to_volume = fixed32_to_float(block.scale) / 10.f;
+                zone.mod_lfo_to_volume = fixed32_to_float(block.scale) / 10.0;
             }
             else if (block.source == CONN_SRC_LFO   && block.control == CONN_SRC_NONE   && block.destination == CONN_DST_PITCH) { // LFO pitch scale
                 zone.mod_lfo_to_pitch = fixed32_to_float(block.scale);
@@ -592,47 +592,47 @@ namespace Flan {
             }*/ // not sure what to do with these
             // Envelope 1 (volume)
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DELAYTIME) { // Vol delay
-                zone.vol_env.delay = 1.0f / tc32_to_seconds(block.scale);
+                zone.vol_env.delay = 1.0 / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_ATTACKTIME) { // Vol attack
-                zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
+                zone.vol_env.attack = 1.0 / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_HOLDTIME) { // Vol hold
-                zone.vol_env.hold = 1.0f / tc32_to_seconds(block.scale);
+                zone.vol_env.hold = 1.0 / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
-                zone.vol_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
+                zone.vol_env.decay = 96.0 / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_SUSTAINLEVEL) { // Vol sustain
-                zone.vol_env.sustain = std::max(-100.f, 6.f * log2f(fixed32_to_float(block.scale) / 1000.f));
+                zone.vol_env.sustain = std::max(-100.0, 6.0 * log2(fixed32_to_float(block.scale) / 1000.0));
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_RELEASETIME) { // Vol release
-                zone.vol_env.release = 96.0f / tc32_to_seconds(block.scale);
+                zone.vol_env.release = 96.0 / tc32_to_seconds(block.scale);
             }
             /*else if (block.source == CONN_SRC_KEYONVELOCITY && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_ATTACKTIME) { // Vol attack
                 zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
             }*/ // no equivalent in sf2 i think
             else if (block.source == CONN_SRC_KEYNUMBER && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG1_DECAYTIME) { // Vol decay
-                zone.key_to_vol_env_decay = -static_cast<float>(block.scale) / 65536.f / 128.f; // (65536 for fixed16.16, 128 for number of keys); 
+                zone.key_to_vol_env_decay = -static_cast<double>(block.scale) / 65536.0 / 128.0; // (65536 for fixed16.16, 128 for number of keys); 
             }
             // Envelope 2 (modulator)
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_DELAYTIME) { // Mod delay
-                zone.mod_env.delay = 1.0f / tc32_to_seconds(block.scale);
+                zone.mod_env.delay = 1.0 / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Mod attack
-                zone.mod_env.attack = 1.0f / tc32_to_seconds(block.scale);
+                zone.mod_env.attack = 1.0 / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_HOLDTIME) { // Mod Hold
-                zone.mod_env.hold = 1.0f / tc32_to_seconds(block.scale);
+                zone.mod_env.hold = 1.0 / tc32_to_seconds(block.scale);
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_DECAYTIME) { // Mod decay
-                zone.mod_env.decay = 96.0f / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
+                zone.mod_env.decay = 96.0 / tc32_to_seconds(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_SUSTAINLEVEL) { // Mod sustain
-                zone.mod_env.sustain = std::max(-100.f, 6.f * log2f(fixed32_to_float(block.scale) / 1000.f));
+                zone.mod_env.sustain = std::max(-100.0, 6.0 * log2(fixed32_to_float(block.scale) / 1000.0));
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_RELEASETIME) { // Mod release
-                zone.mod_env.release = 96.0f / tc32_to_seconds(block.scale);
+                zone.mod_env.release = 96.0 / tc32_to_seconds(block.scale);
             }
             /*else if (block.source == CONN_SRC_KEYONVELOCITY && block.control == CONN_SRC_NONE && block.destination == CONN_DST_EG2_ATTACKTIME) { // Mod attack
                 zone.vol_env.attack = 1.0f / tc32_to_seconds(block.scale);
@@ -641,7 +641,7 @@ namespace Flan {
                 zone.mod_env_to_pitch = tc32_to_cents(block.scale); // 96, since the inferred EG1 attenuation is 96 dB
             }
             else if (block.source == CONN_SRC_NONE && block.control == CONN_SRC_NONE && block.destination == CONN_DST_PAN) { // Panning
-                zone.pan = fixed32_to_float(block.scale) / 1000.f;
+                zone.pan = fixed32_to_float(block.scale) / 1000.0;
                 if (block.scale != 0) {
                     printf("yeet");
                 }
@@ -652,7 +652,7 @@ namespace Flan {
         }
 
         // Correct decay based on key vol env decay
-        zone.vol_env.decay *= powf(2, zone.key_to_vol_env_decay * (60) / (1200));
+        zone.vol_env.decay *= pow(2, zone.key_to_vol_env_decay * 60 / 1200);
     }
 
     Preset Soundfont::get_sf2_preset_from_index(size_t index, RawSoundfontData& raw_sf) {
@@ -784,51 +784,56 @@ namespace Flan {
                     final_zone_generator_values["sampleModes"].u_amount % 2 == 1,
                     static_cast<u8>(final_zone_generator_values["keynum"].u_amount),
                     static_cast<u8>(final_zone_generator_values["velocity"].u_amount),
-                    static_cast<float>(final_zone_generator_values["pan"].s_amount) / 500.0f,
+                    static_cast<double>(final_zone_generator_values["pan"].s_amount) / 500.0,
                     EnvParams {
-                        1.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["delayVolEnv"].s_amount) / 1200.0f),
-                        1.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["attackVolEnv"].s_amount) / 1200.0f),
-                        1.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["holdVolEnv"].s_amount) / 1200.0f),
-                        100.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["decayVolEnv"].s_amount) / 1200.0f),
-                        0.0f - static_cast<float>(final_zone_generator_values["sustainVolEnv"].u_amount) / 10.0f,
-                        100.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["releaseVolEnv"].s_amount) / 1200.0f),
+                        1.0 / pow(2.0, static_cast<double>(final_zone_generator_values["delayVolEnv"].s_amount) / 1200.0),
+                        1.0 / pow(2.0, static_cast<double>(final_zone_generator_values["attackVolEnv"].s_amount) / 1200.0),
+                        1.0 / pow(2.0, static_cast<double>(final_zone_generator_values["holdVolEnv"].s_amount) / 1200.0),
+                        100.0 / pow(2.0, static_cast<double>(final_zone_generator_values["decayVolEnv"].s_amount) / 1200.0),
+                        0.0 - static_cast<double>(final_zone_generator_values["sustainVolEnv"].u_amount) / 10.0,
+                        100.0 / pow(2.0, static_cast<double>(final_zone_generator_values["releaseVolEnv"].s_amount) / 1200.0),
                     },
                     EnvParams {
-                        1.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["delayModEnv"].s_amount) / 1200.0f),
-                        1.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["attackModEnv"].s_amount) / 1200.0f),
-                        1.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["holdModEnv"].s_amount) / 1200.0f),
-                        100.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["decayModEnv"].s_amount) / 1200.0f),
-                        0.0f - static_cast<float>(final_zone_generator_values["sustainModEnv"].u_amount) / 10.0f,
-                        100.0f / powf(2.0f, static_cast<float>(final_zone_generator_values["releaseModEnv"].s_amount) / 1200.0f),
+                        1.0 / pow(2.0, static_cast<double>(final_zone_generator_values["delayModEnv"].s_amount) / 1200.0),
+                        1.0 / pow(2.0, static_cast<double>(final_zone_generator_values["attackModEnv"].s_amount) / 1200.0),
+                        1.0 / pow(2.0, static_cast<double>(final_zone_generator_values["holdModEnv"].s_amount) / 1200.0),
+                        100.0 / pow(2.0, static_cast<double>(final_zone_generator_values["decayModEnv"].s_amount) / 1200.0),
+                        0.0 - static_cast<double>(final_zone_generator_values["sustainModEnv"].u_amount) / 10.0,
+                        100.0 / pow(2.0, static_cast<double>(final_zone_generator_values["releaseModEnv"].s_amount) / 1200.0),
                     },
                     LfoParams{
                         //freq, intensity, delay
-                        8.176f * powf(2.0f, static_cast<float>(final_zone_generator_values["freqVibLFO"].s_amount) / 1200.0f),
-                        powf(2.0f, static_cast<float>(final_zone_generator_values["delayVibLFO"].s_amount) / 1200.0f),
+                        8.176 * pow(2.0, static_cast<double>(final_zone_generator_values["freqVibLFO"].s_amount) / 1200.0),
+                        pow(2.0, static_cast<double>(final_zone_generator_values["delayVibLFO"].s_amount) / 1200.0),
                     },
                     LfoParams{
                         //freq, intensity, delay
-                        8.176f * powf(2.0f, static_cast<float>(final_zone_generator_values["freqModLFO"].s_amount) / 1200.0f),
-                        powf(2.0f, static_cast<float>(final_zone_generator_values["delayModLFO"].s_amount) / 1200.0f),
+                        8.176 * pow(2.0, static_cast<double>(final_zone_generator_values["freqModLFO"].s_amount) / 1200.0),
+                        pow(2.0, static_cast<double>(final_zone_generator_values["delayModLFO"].s_amount) / 1200.0),
                     },
                     LowPassFilter{
                         8.176f * powf(2.0f, static_cast<float>(final_zone_generator_values["initialFilterFc"].s_amount) / 1200.0f),
                         powf(2, static_cast<float>(final_zone_generator_values["initialFilterQ"].s_amount) / 150.0f),
                     },
-                    static_cast<float>(final_zone_generator_values["modEnvToPitch"].s_amount),
-                    static_cast<float>(final_zone_generator_values["modEnvToFilterFc"].s_amount),
-                    static_cast<float>(final_zone_generator_values["modLfoToPitch"].s_amount),
-                    static_cast<float>(final_zone_generator_values["modLfoToFilterFc"].s_amount),
-                    static_cast<float>(final_zone_generator_values["modLfoToVolume"].s_amount) / 10.0f,
-                    static_cast<float>(final_zone_generator_values["vibLfoToPitch"].s_amount),
-                    static_cast<float>(final_zone_generator_values["keynumToVolEnvHold"].s_amount),
-                    static_cast<float>(final_zone_generator_values["keynumToVolEnvDecay"].s_amount),
-                    static_cast<float>(final_zone_generator_values["keynumToModEnvHold"].s_amount),
-                    static_cast<float>(final_zone_generator_values["keynumToModEnvDecay"].s_amount),
-                    static_cast<float>(final_zone_generator_values["scaleTuning"].s_amount) / 100.0f,
-                    static_cast<float>(final_zone_generator_values["coarseTune"].s_amount) + static_cast<float>(final_zone_generator_values["fineTune"].s_amount) / 100.0f,
-                    static_cast<float>(final_zone_generator_values["initialAttenuation"].s_amount) / 10.0f,
+                    static_cast<double>(final_zone_generator_values["modEnvToPitch"].s_amount),
+                    static_cast<double>(final_zone_generator_values["modEnvToFilterFc"].s_amount),
+                    static_cast<double>(final_zone_generator_values["modLfoToPitch"].s_amount),
+                    static_cast<double>(final_zone_generator_values["modLfoToFilterFc"].s_amount),
+                    static_cast<double>(final_zone_generator_values["modLfoToVolume"].s_amount) / 10.0,
+                    static_cast<double>(final_zone_generator_values["vibLfoToPitch"].s_amount),
+                    static_cast<double>(final_zone_generator_values["keynumToVolEnvHold"].s_amount),
+                    static_cast<double>(final_zone_generator_values["keynumToVolEnvDecay"].s_amount),
+                    static_cast<double>(final_zone_generator_values["keynumToModEnvHold"].s_amount),
+                    static_cast<double>(final_zone_generator_values["keynumToModEnvDecay"].s_amount),
+                    static_cast<double>(final_zone_generator_values["scaleTuning"].s_amount) / 100.0,
+                    static_cast<double>(final_zone_generator_values["coarseTune"].s_amount) + static_cast<double>(final_zone_generator_values["fineTune"].s_amount) / 100.0,
+                    static_cast<double>(final_zone_generator_values["initialAttenuation"].s_amount) / 10.0,
+                    "",
                 };
+
+                // Set the name
+                auto& instrument = raw_sf.instruments[preset_zone_index];
+                strncpy_s(new_zone_to_add.name, reinterpret_cast<char*>(instrument.name), sizeof(instrument.name));
 
                 // Add to final preset
                 final_preset.zones.push_back(new_zone_to_add);

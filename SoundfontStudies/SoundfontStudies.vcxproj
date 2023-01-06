@@ -239,6 +239,7 @@
     <ClCompile Include="envs_lfos.cpp" />
     <ClCompile Include="riff_tree.cpp" />
     <ClCompile Include="soundfont.cpp" />
+    <ClCompile Include="structs.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />

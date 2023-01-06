@@ -2,7 +2,6 @@
 #include "common.h"
 #include <string>
 #include <vector>
-#include <fstream>
 #include <iostream>
 
 #include "envs_lfos.h"
@@ -43,25 +42,26 @@ namespace Flan {
         bool loop_enable = false;	      // True if sample loops, False if sample does not loop
         u8 key_override = 255;            // If value is below 128, this zone always plays as if it were triggered by this MIDI key.
         u8 vel_override = 255;            // If value is below 128, this zone always plays as if it were triggered with this velocity.
-        float pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
+        double pan = 0.0f;			      // -1.0f for full left, +1.0f for full right, 0.0f for center
         EnvParams vol_env;                // Volume envelope
         EnvParams mod_env;                // Modulator envelope
         LfoParams vib_lfo;                // Volume LFO
         LfoParams mod_lfo;                // Modulator LFO
         LowPassFilter filter;             // Filter base settings
-        float mod_env_to_pitch = 0;       // The max sample pitch shift in cents that the modulator envelope will apply
-        float mod_env_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator envelope will apply
-        float mod_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
-        float mod_lfo_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator lfo will apply
-        float mod_lfo_to_volume = 0;      // The max radius in dB that the modulator lfo will make the volume rise and fall
-        float vib_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
-        float key_to_vol_env_hold = 0.0f; // Envelope Hold change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
-        float key_to_vol_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
-        float key_to_mod_env_hold = 0.0f; // Envelope Hold change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
-        float key_to_mod_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
-        float scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
-        float tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
-        float init_attenuation = 0.0f;    // Value to subtract from note volume in cB
+        double mod_env_to_pitch = 0;       // The max sample pitch shift in cents that the modulator envelope will apply
+        double mod_env_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator envelope will apply
+        double mod_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
+        double mod_lfo_to_filter = 0;      // The max filter frequency pitch shift in cents that the modulator lfo will apply
+        double mod_lfo_to_volume = 0;      // The max radius in dB that the modulator lfo will make the volume rise and fall
+        double vib_lfo_to_pitch = 0;       // The max sample pitch shift in cents that the modulator lfo will apply
+        double key_to_vol_env_hold = 0.0f; // Envelope Hold change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        double key_to_vol_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        double key_to_mod_env_hold = 0.0f; // Envelope Hold change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        double key_to_mod_env_decay = 0.0f;// Envelope Decay change between an octave (0.0 = no change per key, 100.0 twice as long for key-1)
+        double scale_tuning = 1.0f;	      // Difference in semitones between each MIDI note
+        double tuning = 0.0f;		      // Combination of the sf2 coarse and fine tuning, could be added to MIDI key directly to get corrected pitch
+        double init_attenuation = 0.0f;    // Value to subtract from note volume in cB
+        char name[24]{ 0 };
     };
 
     struct PresetIndex {
@@ -84,23 +84,8 @@ namespace Flan {
             return *reinterpret_cast<const uint32_t*>(v);
         }
 
-        [[nodiscard]] std::shared_ptr<char> c_str() const
-        {
-            std::shared_ptr<char> cstr(static_cast<char*>(malloc(5)), free);
-            cstr.get()[0] = id_chr[0];
-            cstr.get()[1] = id_chr[1];
-            cstr.get()[2] = id_chr[2];
-            cstr.get()[3] = id_chr[3];
-            cstr.get()[4] = 0;
-            return cstr;
-        }
-        bool verify(const char* other_id) const
-        {
-            if (*this != other_id) {
-                printf("[ERROR] Chunk ID mismatch! Expected '%s'\n", other_id);
-            }
-            return *this == other_id;
-        }
+        [[nodiscard]] std::shared_ptr<char> c_str() const;
+        bool verify(const char* other_id) const;
         bool operator==(const ChunkId& rhs) const { return id == rhs.id; }
         bool operator!=(const ChunkId& rhs) const { return id == rhs.id; }
         bool operator==(const char* rhs) const { return *reinterpret_cast<const uint32_t*>(rhs) == id; }
@@ -115,62 +100,11 @@ namespace Flan {
             if (original_pointer)
                 free(original_pointer);
         }
-        bool from_buffer(u8* buffer_to_use, u32 size) {
-            if (buffer_to_use == nullptr)
-                return false;
-            if (size == 0) {
-                return false;
-            }
-            data_pointer = buffer_to_use;
-            chunk_bytes_left = size;
-            return true;
-        }
-
-        bool from_file(FILE* file, u32 size) {
-            if (size == 0) {
-                return false;
-            }
-            original_pointer = static_cast<uint8_t*>(malloc(size));
-            data_pointer = original_pointer;
-            if (!data_pointer) { return false; }
-            fread_s(data_pointer, size, size, 1, file);
-            chunk_bytes_left = size;
-            return true;
-        }
-
-        bool from_ifstream(std::ifstream& file, u32 size, bool free_on_destruction = true) {
-            if (size == 0) {
-                return false;
-            }
-            data_pointer = static_cast<uint8_t*>(malloc(size));
-            if (free_on_destruction)
-                original_pointer = data_pointer;
-            if (!data_pointer) { return false; }
-            file.read(reinterpret_cast<char*>(data_pointer), size);
-            chunk_bytes_left = size;
-            return true;
-        }
-
-        bool from_data_handler(const ChunkDataHandler& data, const u32 size) {
-            if (size == 0) {
-                return false;
-            }
-            data_pointer = data.data_pointer;
-            chunk_bytes_left = size;
-            return true;
-        }
-
-        bool get_data(void* destination, const u32 byte_count) {
-            if (chunk_bytes_left >= byte_count) {
-                if (destination != nullptr) { // Sending a nullptr is valid, it just discards byte_count number of bytes
-                    memcpy(destination, data_pointer, byte_count);
-                }
-                chunk_bytes_left -= byte_count;
-                data_pointer += byte_count;
-                return true;
-            }
-            return false;
-        }
+        bool from_buffer(u8* buffer_to_use, u32 size);
+        bool from_file(FILE* file, u32 size);
+        bool from_ifstream(std::ifstream& file, u32 size, bool free_on_destruction = true);
+        bool from_data_handler(const ChunkDataHandler& data, u32 size);
+        bool get_data(void* destination, u32 byte_count);
     };
 
     struct Chunk {

@@ -1,5 +1,6 @@
 // ReSharper disable CppInconsistentNaming
 #pragma once
+// ReSharper disable once CppUnusedIncludeDirective
 #include <cstdint>
 #define u8 uint8_t
 #define u16 uint16_t
